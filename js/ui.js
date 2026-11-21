@@ -1,19 +1,21 @@
+// 共通の小物（エスケープ、キー変換、差分描画、画像圧縮、アイコン・装飾のSVG）
+
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-export const TEAM_COLORS = ['#ff6a9b', '#36b8e6', '#36c98e', '#ffb53a', '#8a78ec', '#ff5a7a', '#33ccbb', '#5b9cf0', '#ff9a4a', '#b07ce8'];
 // DBのキーは 'u01'（ユーザー）、't3'（チーム）のように文字を付ける（数字だけだと配列に変換されるため）
 export const num = k => String(k ?? '').replace(/\D/g, '');
 export const sid = k => num(k);                       // 'u07' → '07'
 export const ukey = input => { const n = parseInt(String(input).trim(), 10); return Number.isFinite(n) && n > 0 ? 'u' + String(n).padStart(2, '0') : null; };
 export const tkey = input => { const n = parseInt(String(input).trim(), 10); return Number.isFinite(n) && n > 0 ? 't' + n : null; };
-export const teamColor = tid => TEAM_COLORS[(parseInt(num(tid), 10) - 1) % TEAM_COLORS.length];
-export const teamBadge = tid => tid ? `<span class="badge" style="background:${teamColor(tid)}">T${esc(num(tid))}</span>` : '';
 
-export const CHOICE_COLORS = { A: '#ff6a9b', B: '#36b8e6', C: '#ffb53a', D: '#36c98e', O: '#36b8e6', X: '#ff6a9b' };
-export const choiceLabel = c => c === 'O' ? '○' : c === 'X' ? '×' : c;
+export const TEAM_COLORS = ['#c9a96a', '#7fa7b8', '#b98a8a', '#8fae8b', '#a596c2', '#d0a07a', '#6f9aa0', '#c28fae', '#9aa36f', '#8c9cc9'];
+export const teamColor = tid => TEAM_COLORS[(parseInt(num(tid), 10) - 1) % TEAM_COLORS.length] || '#c9a96a';
+export const CHOICE_COLORS = { A: '#c9a96a', B: '#7fa7b8', C: '#b98a8a', D: '#8fae8b', O: '#7fa7b8', X: '#b98a8a' };
+export const fmtN = n => Number(n || 0).toLocaleString('en-US');
+export const fmtSec = ms => Math.max(0, Math.ceil(ms / 1000));
 
 // 画像を縮小して dataURL（jpeg）にする
-export function compressImage(file, maxSize = 400, quality = 0.75) {
+export function compressImage(file, maxSize = 400, quality = 0.8) {
   return new Promise((res, rej) => {
     const img = new Image();
     img.onload = () => {
@@ -31,13 +33,16 @@ export function compressImage(file, maxSize = 400, quality = 0.75) {
   });
 }
 
-// innerHTML を差し替えるときに、入力中の欄のフォーカスと値・スクロール位置を保つ
+// innerHTML を差し替えるときに、入力中の欄のフォーカス・値・スクロール位置を保つ
 export function patch(el, html) {
   if (el._html === html) return false;
   const a = document.activeElement;
   const keep = a && a.id && el.contains(a) ? { id: a.id, v: a.value, s: a.selectionStart } : null;
+  const vals = {};
+  el.querySelectorAll('input[id]:not([type=range]):not([type=file]):not([type=checkbox]), textarea[id], select[id]').forEach(n => { if (n.dataset.keep !== undefined) vals[n.id] = n.value; });
   const y = scrollY;
   el.innerHTML = html; el._html = html;
+  for (const [id, v] of Object.entries(vals)) { const n = document.getElementById(id); if (n) n.value = v; }
   if (keep) {
     const n = document.getElementById(keep.id);
     if (n) { if ('value' in n && n.type !== 'range') n.value = keep.v; n.focus(); try { n.setSelectionRange(keep.s, keep.s); } catch {} }
@@ -46,60 +51,65 @@ export function patch(el, html) {
   return true;
 }
 
-export const fmtSec = ms => Math.max(0, Math.ceil(ms / 1000));
+// ---------- 線画アイコン（stroke=currentColor） ----------
+const P = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+export const ICON = {
+  gift: P('<rect x="3.5" y="9" width="17" height="11.5" rx="1"/><rect x="2.5" y="6" width="19" height="3.5" rx="1"/><path d="M12 6v14.5"/><path d="M12 6c-1.5-3.5-5.5-3.8-5.5-1.6C6.5 6 10 6 12 6zM12 6c1.5-3.5 5.5-3.8 5.5-1.6C17.5 6 14 6 12 6z"/>'),
+  open: P('<path d="M3.5 12h17v8.5h-17z"/><path d="M12 12v8.5"/><path d="M4 9.5l15-4 .8 3-15 4z"/><path d="M11.4 7.5L9.8 3.6M11.4 7.5l3-2.9"/>'),
+  bomb: P('<circle cx="10.5" cy="14" r="6.5"/><path d="M15 9.5l2-2"/><path d="M17 7.5c.6-1.6 2-2 3.2-1.4"/><path d="M20.5 3.5v1M22 5h-1M20.9 2.6l.6-.6"/><path d="M7.5 12a3.5 3.5 0 0 1 2.5-2.4"/>'),
+  check: P('<path d="M5 12.5l4.2 4.2L19 7"/>'),
+  clock: P('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>'),
+  pen: P('<path d="M4 20l1-4L16 5l3 3L8 19z"/><path d="M14 7l3 3"/>'),
+  star: P('<path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/>'),
+  crown: P('<path d="M3.5 18h17M4.5 18L3 8l5 4 4-7 4 7 5-4-1.5 10"/>'),
+  users: P('<circle cx="9" cy="8.5" r="3.2"/><path d="M3 19c.6-3.4 3-5.2 6-5.2s5.4 1.8 6 5.2"/><circle cx="17" cy="9.5" r="2.6"/><path d="M16.5 14c2.4.1 4 1.6 4.5 4.5"/>'),
+  link: P('<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'),
+  search: P('<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/>'),
+  logout: P('<path d="M9 4H5v16h4"/><path d="M14 8l4 4-4 4M18 12H9"/>'),
+  play: P('<path d="M7 5l12 7-12 7z"/>'),
+  stop: P('<rect x="6" y="6" width="12" height="12" rx="1"/>'),
+  medal: P('<circle cx="12" cy="15" r="5.5"/><path d="M8.5 3.5l3.5 6 3.5-6M12 12.5v5"/>'),
+};
 
-// プレゼントボックス（SVGイラスト）。n=番号、cls=状態クラス（on/gone/bomb）、label=札に書く文字
-const GIFT_COLORS = [
-  ['#ffb3d1', '#ff6aa3', '#e04585', '#ffffff'], ['#9eeaff', '#2fb6e8', '#1a8fc4', '#ffffff'],
-  ['#d3c8ff', '#9a86f5', '#7462d8', '#ffe27a'], ['#a6f5e2', '#2fcbb0', '#1fa38c', '#ff6a8a'],
-  ['#ffe9a3', '#ffbb33', '#e8941a', '#ff5a7a'], ['#ffb0bd', '#f5506f', '#d12f52', '#ffe27a'],
-  ['#b5f0b8', '#47c46e', '#2e9e52', '#ff5a7a'], ['#b8d8ff', '#5a96f2', '#3b72d1', '#ffffff'],
-  ['#ffd2ad', '#ff9045', '#e06a20', '#ffffff'], ['#ecc0ff', '#b768ea', '#9447c9', '#ffe27a'],
-];
-let giftSeq = 0;
-export function giftHTML(n, cls = '', label = n) {
-  const [l, m, d, r] = GIFT_COLORS[(n - 1) % 10], id = 'gf' + (++giftSeq);
-  const open = cls.includes('gone');
-  const lid = `<g class="lid" ${open ? 'transform="translate(-6 -16) rotate(-14 50 30)"' : ''}>
-      <polygon points="10,34 26,26 90,26 74,34" fill="url(#${id}t)"/>
-      <rect x="10" y="34" width="64" height="13" rx="1.5" fill="url(#${id}f)"/>
-      <polygon points="74,34 90,26 90,39 74,47" fill="${d}"/>
-      <polygon points="37,34 47,34 63,26 53,26" fill="${r}"/><polygon points="16,31 82,31 84,29 18,29" fill="${r}" opacity=".9"/>
-      <rect x="37" y="34" width="10" height="13" fill="${r}"/><rect x="37" y="34" width="10" height="13" fill="#000" opacity=".06"/>
-      <polygon points="80,30 84,28 84,41 80,43" fill="${r}" opacity=".85"/>
-      <g transform="translate(50 27)">
-        <path d="M0 0 C -14 -16, -26 -4, -16 3 C -10 6, -4 3, 0 0Z" fill="${r}" stroke="#0000001a" stroke-width=".8"/>
-        <path d="M0 0 C 14 -16, 26 -4, 16 3 C 10 6, 4 3, 0 0Z" fill="${r}" stroke="#0000001a" stroke-width=".8"/>
-        <path d="M-2 1 L -9 12 L -4 11 L -2 15Z M2 1 L 9 12 L 4 11 L 2 15Z" fill="${r}" stroke="#0000001a" stroke-width=".6"/>
-        <path d="M-6 -7 C -10 -9, -15 -7, -16 -3" stroke="#fff" stroke-width="1.6" fill="none" opacity=".7" stroke-linecap="round"/>
-        <ellipse cx="0" cy="1" rx="4" ry="3.4" fill="${r}" stroke="#0000001f" stroke-width=".8"/>
-      </g></g>`;
-  return `<div class="gift ${cls}"><svg viewBox="0 0 100 100" aria-hidden="true">
-    <defs><linearGradient id="${id}f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${l}"/><stop offset="1" stop-color="${m}"/></linearGradient>
-      <linearGradient id="${id}t" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="${l}"/><stop offset="1" stop-color="#fff"/></linearGradient></defs>
-    <ellipse cx="50" cy="91" rx="38" ry="5" fill="#5a4fa0" opacity=".14"/>
-    <rect x="14" y="45" width="56" height="44" rx="1.5" fill="url(#${id}f)"/>
-    <polygon points="70,45 86,37 86,81 70,89" fill="${d}"/>
-    ${open ? `<polygon points="14,45 30,37 86,37 70,45" fill="${d}" opacity=".9"/><polygon points="14,45 30,37 30,40 17,46" fill="#0003"/>` : ''}
-    <rect x="37" y="45" width="10" height="44" fill="${r}"/><polygon points="76,42 80,40 80,84 76,86" fill="${r}" opacity=".85"/>
-    <rect x="16" y="47" width="5" height="40" rx="2" fill="#fff" opacity=".28"/>
-    ${lid}
-    ${label !== '' ? `<g class="tag"><path d="M42 47 Q 40 54 33 58" stroke="#8a84b8" stroke-width=".9" fill="none"/>
-      <rect x="14" y="55" width="38" height="24" rx="3" fill="#fff" stroke="#e3dff5" stroke-width=".8" transform="rotate(-6 33 66)"/>
-      <circle cx="31" cy="58.4" r="1.3" fill="#c9c3e8" transform="rotate(-6 33 66)"/>
-      <text x="33" y="73" text-anchor="middle" transform="rotate(-6 33 66)">${label}</text></g>` : ''}
-  </svg></div>`;
+// ---------- 装飾 ----------
+// 金の線で描くリース（中身は html で渡す）
+export function wreathHTML(inner, { bow = true, size = 220 } = {}) {
+  const R = 84, leaves = [];
+  for (let i = 0; i < 36; i++) {
+    const a = (i / 36) * Math.PI * 2, x = 110 + Math.cos(a) * R, y = 110 + Math.sin(a) * R;
+    const deg = (a * 180) / Math.PI + (i % 2 ? 60 : -60) + 90;
+    leaves.push(`<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="10" ry="4.2" transform="rotate(${deg.toFixed(0)} ${x.toFixed(1)} ${y.toFixed(1)})"/>`);
+  }
+  const berries = [20, 70, 125, 160, 215, 250, 300, 335].map(d => {
+    const a = (d * Math.PI) / 180; return `<circle cx="${(110 + Math.cos(a) * (R + 2)).toFixed(1)}" cy="${(110 + Math.sin(a) * (R + 2)).toFixed(1)}" r="2.6" fill="#fff" stroke="none"/>`;
+  }).join('');
+  return `<div class="wreath" style="width:${size}px;height:${size}px">
+    <svg viewBox="0 0 220 220" aria-hidden="true"><g fill="none" stroke="#c9a96a" stroke-width="1.1">
+      <circle cx="110" cy="110" r="${R}" stroke-width=".8" opacity=".6"/>${leaves.join('')}</g>${berries}
+      ${bow ? `<g fill="none" stroke="#c9a96a" stroke-width="1.4" stroke-linejoin="round">
+        <path d="M110 196c-10-10-26-14-28-4s16 8 28 4z" fill="#0f2a39"/><path d="M110 196c10-10 26-14 28-4s-16 8-28 4z" fill="#0f2a39"/>
+        <path d="M106 198l-8 18M114 198l8 18"/><circle cx="110" cy="196" r="4" fill="#0f2a39"/></g>` : ''}
+      <path d="M110 16l2.4 6 6.2.4-4.8 3.9 1.6 6.1-5.4-3.4-5.4 3.4 1.6-6.1-4.8-3.9 6.2-.4z" fill="#e3cc95"/>
+    </svg><div class="wreath-in">${inner}</div></div>`;
 }
 
-// 背景の飾り（雪・三角形・円・イルミネーション）
-export const BG_HTML = `<div class="bg"><div class="snow"></div><div class="dotgrid" style="left:-14px;top:22%"></div><div class="dotgrid" style="right:-30px;bottom:4%;height:180px"></div><div class="wm" id="wm">MERRY<br>XMAS</div>
-  <span class="tri" style="left:-20px;top:18%;border-width:0 46px 80px 46px;border-color:transparent transparent #33ccbb33 transparent;transform:rotate(-20deg)"></span>
-  <span class="tri" style="right:-12px;top:44%;border-width:0 34px 60px 34px;border-color:transparent transparent #ff7eb333 transparent;transform:rotate(25deg)"></span>
-  <span class="tri" style="left:12%;bottom:12%;border-width:0 24px 42px 24px;border-color:transparent transparent #ffffffaa transparent;transform:rotate(15deg)"></span>
-  <span class="tri" style="right:16%;top:10%;border-width:0 16px 28px 16px;border-color:transparent transparent #9b8cf044 transparent;transform:rotate(-35deg)"></span>
-  <span class="c" style="right:8%;bottom:26%;width:28px;height:28px"></span>
-  <span class="c" style="left:6%;top:34%;width:14px;height:14px;border-color:#33ccbb88"></span>
-  <span class="c" style="right:22%;bottom:7%;width:12px;height:12px;border-color:#ff7eb388"></span>
-  <svg class="lights" viewBox="0 0 360 34" preserveAspectRatio="none"><path d="M0 4 Q 45 26 90 8 T 180 8 T 270 8 T 360 6" fill="none" stroke="#7d78a866" stroke-width="1.5"/>
-  ${['#ff5a7a','#ffc94a','#3fc98a','#5bc8f0','#ff7eb3','#ffc94a','#ff5a7a','#3fc98a','#9b8cf0','#ffc94a','#ff5a7a','#5bc8f0'].map((c, i) =>
-    `<circle cx="${22 + i * 30}" cy="${[13, 19, 11, 11, 18, 10, 11, 18, 10, 11, 17, 8][i]}" r="4" fill="${c}"/>`).join('')}</svg></div>`;
+// ガラスのオーナメント（結果表示）
+export function ornamentHTML(inner) {
+  return `<div class="ornament"><svg viewBox="0 0 240 300" aria-hidden="true">
+    <defs><radialGradient id="orb" cx=".35" cy=".3" r=".9"><stop offset="0" stop-color="#2d5a6c"/><stop offset=".55" stop-color="#143546"/><stop offset="1" stop-color="#0c2230"/></radialGradient></defs>
+    <path d="M120 0v52" stroke="#c9a96a" stroke-width="1.2"/><circle cx="120" cy="56" r="6" fill="none" stroke="#c9a96a" stroke-width="1.2"/>
+    <rect x="104" y="60" width="32" height="16" rx="3" fill="#0f2a39" stroke="#c9a96a" stroke-width="1.2"/>
+    <circle cx="120" cy="182" r="106" fill="url(#orb)" stroke="#c9a96a" stroke-width="1.4"/>
+    <circle cx="120" cy="182" r="98" fill="none" stroke="#c9a96a" stroke-width=".6" opacity=".55"/>
+    <path d="M24 160c40 14 152 14 192 0" fill="none" stroke="#c9a96a" stroke-width=".6" opacity=".5"/>
+    <ellipse cx="86" cy="118" rx="28" ry="12" fill="#fff" opacity=".12" transform="rotate(-24 86 118)"/>
+  </svg><div class="ornament-in">${inner}</div></div>`;
+}
+
+// 背景の飾り（雪・星・フレーム・吊り下げオーナメント）
+const stars = [[8, 14, 10], [88, 22, 12], [92, 48, 9], [6, 52, 8], [78, 70, 7], [14, 82, 9], [50, 6, 6], [30, 30, 5], [70, 36, 5]];
+export const BG_HTML = `<div class="bg"><div class="snow"></div><div class="snow s2"></div>
+  ${stars.map(([x, y, s], i) => `<span class="spark" style="left:${x}%;top:${y}%;font-size:${s * 1.6}px;animation-delay:${i * 0.4}s">✦</span>`).join('')}
+</div>
+<div class="frame"><svg class="hang" viewBox="0 0 60 120" aria-hidden="true"><path d="M30 0v70" stroke="#c9a96a" stroke-width="1"/><circle cx="30" cy="86" r="14" fill="none" stroke="#c9a96a" stroke-width="1.1"/><rect x="25" y="68" width="10" height="5" rx="1" fill="none" stroke="#c9a96a"/></svg>
+  <svg class="hang h2" viewBox="0 0 60 120" aria-hidden="true"><path d="M30 0v46" stroke="#c9a96a" stroke-width="1"/><circle cx="30" cy="60" r="11" fill="none" stroke="#c9a96a" stroke-width="1.1"/><path d="M19 58h22M20 63h20" stroke="#c9a96a" stroke-width=".8"/><rect x="26" y="44" width="8" height="4" rx="1" fill="none" stroke="#c9a96a"/></svg></div>`;

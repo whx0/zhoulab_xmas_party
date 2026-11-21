@@ -1,12 +1,12 @@
-// 管理者画面
+// 管理者画面（当日の進行順に、上から押していけばいい作り）
 import { db, TS, MOCK } from './db.js';
 import { CFG_DEFAULT, ITEMS, toArr, sum, ranking, gradeNormal, gradeR4, rankPoints, toolScore, spotCount,
   other, remaining, giftNew, giftAuto } from './logic.js';
-import { esc, teamColor, CHOICE_COLORS, compressImage, patch, fmtSec, sid, ukey, tkey, giftHTML } from './ui.js';
+import { esc, teamColor, CHOICE_COLORS, compressImage, patch, fmtSec, fmtN, sid, ukey, tkey } from './ui.js';
 
 const app = document.getElementById('app');
 const S = { cfg: CFG_DEFAULT };
-const L = { tab: localStorage.getItem('xmas_admin_tab') || 'quiz', viewQ: null, spotTeam: '', giftN: null };
+const L = { page: localStorage.getItem('xmas_admin_page') || 'lobby', spotTeam: '', editQ: null, giftN: null };
 const KEYS = ['state', 'users', 'teams', 'pairs', 'points', 'ctime', 'config', 'presence', 'questions', 'r4items', 'tools', 'secret', 'spot', 'gift', 'results'];
 for (const k of KEYS) db.on(k, v => { S[k] = v || {}; if (k === 'config') S.cfg = { ...CFG_DEFAULT, ...(v || {}) }; render(); });
 db.on('assets/tools', v => { S.toolAssets = toArr(v); render(); });
@@ -18,254 +18,336 @@ function watchAnswers(qid) {
   ansSub = qid ? { qid, off: db.on('answers/' + qid, v => { S.answers = v || {}; render(); }) } : null;
 }
 
+// ---------- 小物 ----------
 const users = () => S.users || {};
 const uids = () => Object.keys(users()).sort();
 const name = k => users()[k]?.name ?? '?';
-const who = k => k ? `<span class="pid">${esc(sid(k))}</span> ${esc(name(k))}` : '—';
-const tbadge = t => t ? `<span class="pill" style="background:${teamColor(t)}">T${esc(sid(t))}</span>` : '';
-const timer = d => `<b data-deadline="${d}"></b>`;
+const who = k => k ? `<span class="idb">${esc(sid(k))}</span>${esc(name(k))}` : '—';
+const tb = t => t ? `<span class="tb" style="background:${teamColor(t)}">チーム${esc(sid(t))}</span>` : '<span class="muted">—</span>';
 const points = () => S.points || {};
-const fmtN = n => Number(n || 0).toLocaleString('en-US');
+const total = k => sum(points()[k]);
 const b = (act, label, attrs = '', cls = '') => `<button class="ab ${cls}" data-act="${act}" ${attrs}>${label}</button>`;
 const lab = c => c === 'O' ? '○' : c === 'X' ? '×' : c;
 const RN = { 0: '練習', 1: 'R1', 4: 'R4' };
-const PHASES = [['lobby', '待機'], ['team', 'チーム作り'], ['pair', 'ペア作り'], ['quiz', '問題'], ['tools', '道具選び'], ['spot', '間違い探し'], ['gift', 'プレゼント'], ['end', '終了']];
-const TABS = [['quiz', '① 問題・R4'], ['team', 'チーム・ペア'], ['r2', '② R2'], ['r3', '③ R3'], ['rank', 'ランキング・得点'], ['cfg', '設定']];
+const timer = d => `<b data-deadline="${d}"></b>`;
+const step = (n, title, desc, actions, st = '') => `<div class="step ${st}"><div class="sn">${st === 'done' ? '✓' : n}</div>
+  <div><div class="st">${title}</div>${desc ? `<div class="sd">${desc}</div>` : ''}</div><div class="sa">${actions}</div></div>`;
+const box = (title, inner, extra = '') => `<div class="box"><h4>${title}${extra}</h4>${inner}</div>`;
+const kpi = (k, v) => `<div class="kpi"><div class="k">${k}</div><div class="v">${v}</div></div>`;
+const PHASE_JA = { lobby: '待機（ID表示）', team: 'チーム作り', pair: 'ペア作り', quiz: '問題', tools: '道具選び', spot: '間違い探し', gift: 'プレゼントツリー', end: '終了' };
+const playerURL = () => location.href.replace(/admin\.html.*$/, '');
 
-// ---------------- 描画 ----------------
+const PAGES = [
+  ['grp', '準備（前日まで）'], ['q', '問題リスト'], ['mat', 'R2 の素材'], ['cfg', '配点・設定'],
+  ['grp', '本番（上から順に）'], ['lobby', '受付'], ['r1', '練習・R1 個人戦'], ['team', 'チーム作り'], ['tools', 'R2 道具選び'], ['spot', 'R2 間違い探し'],
+  ['pair', 'ペア作り'], ['gift', 'R3 プレゼントツリー'], ['r4', 'R4 一発逆転'], ['final', '結果発表'],
+  ['grp', '管理'], ['people', '参加者・チーム・ペア'], ['score', '得点の修正'],
+];
+function livePage() {
+  const st = S.state || {}, q = S.questions?.[st.qid];
+  return { lobby: 'lobby', team: 'team', pair: 'pair', tools: 'tools', spot: 'spot', gift: 'gift', end: 'final', quiz: q?.round === 4 ? 'r4' : 'r1' }[st.phase];
+}
+
+// ---------- 描画 ----------
 function render() {
   const st = S.state || {};
-  watchAnswers(L.viewQ || st.qid);
-  const online = Object.keys(S.presence || {}).length;
-  let h = `<div class="abar"><div class="row"><span class="ttl">🎁 ZHOU LAB XMAS 管理者</span>
-      ${MOCK ? '<span class="pill" style="background:#ff9a4a">ローカルお試し</span>' : ''}
-      <span class="hint">接続 <b>${online}</b> / 登録 <b>${uids().length}</b>　参加者画面：</span>
-      ${PHASES.map(([k, l]) => `<button class="ab ${st.phase === k ? 'on' : ''}" data-act="phase" data-p="${k}">${l}</button>`).join('')}</div>
-    <div class="row" style="margin-top:6px">${TABS.map(([k, l]) => `<button class="ab tab ${L.tab === k ? 'on' : ''}" data-act="tab" data-t="${k}">${l}</button>`).join('')}</div></div>`;
-  h += ({ quiz: tabQuiz, team: tabTeam, r2: tabR2, r3: tabR3, rank: tabRank, cfg: tabCfg }[L.tab])();
-  patch(app, h);
-  if (L.tab === 'r2') drawSpotAdmin();
+  watchAnswers(st.qid);
+  const live = livePage();
+  let n = 0;
+  const side = `<div class="brand">Xmas Party<small>ADMIN · ZHOU LAB</small></div>` + PAGES.map(([k, l]) => k === 'grp' ? `<div class="grp">${l}</div>`
+    : `<button class="nav ${L.page === k ? 'on' : ''}" data-act="go" data-p="${k}"><span class="n">${++n}</span>${l}${live === k ? '<span class="live">LIVE</span>' : ''}</button>`).join('');
+  const q = S.questions?.[st.qid];
+  const nowTxt = PHASE_JA[st.phase] ? PHASE_JA[st.phase] + (st.phase === 'quiz' && q ? `（${RN[q.round]} No.${q.no}）` : st.phase === 'gift' && st.giftGame ? `（ゲーム${st.giftGame}）` : '') : 'まだ何も表示していません';
+  const statusBar = `<div class="status"><span class="now">参加者の画面：<b>${nowTxt}</b></span>
+    <span class="pill">接続中 <b>${Object.keys(S.presence || {}).length}</b> / 登録 <b>${uids().length}</b></span>
+    ${MOCK ? '<span class="pill test">ローカルお試しモード</span>' : ''}${S.cfg.testMode ? '<span class="pill test">テストモード ON</span>' : ''}</div>`;
+  const PG = { q: pgQ, mat: pgMat, cfg: pgCfg, lobby: pgLobby, r1: pgR1, team: pgTeam, tools: pgTools, spot: pgSpot, pair: pgPair, gift: pgGift, r4: pgR4, final: pgFinal, people: pgPeople, score: pgScore };
+  patch(app, `<div class="adm"><nav class="side">${side}</nav><main class="main">${statusBar}${(PG[L.page] || pgLobby)()}</main></div>`);
+  if (L.page === 'mat' || L.page === 'spot') drawSpotAdmin();
   tick();
 }
+const head = (t, d) => `<h1 class="page-h">${t}</h1><p class="page-d">${d}</p>`;
+const phaseBtn = (p, label) => (S.state?.phase === p ? '<span class="ok">✓ 表示中</span>' : b('phase', label || '参加者の画面を切り替える', `data-p="${p}"`, 'main'));
 
-// ---- ① 問題・R4 ----
-function tabQuiz() {
-  const st = S.state || {}, qs = S.questions || {}, ql = S.secret?.qlist || {};
-  const qid = L.viewQ || st.qid, q = qs[qid];
-  let h = '';
-  if (q) h += questionCard(qid, q);
+// ===== 準備：問題リスト =====
+function pgQ() {
+  const ql = S.secret?.qlist || {}, e = L.editQ ? ql[L.editQ] : null;
   const list = Object.entries(ql).sort((a, b) => a[1].no - b[1].no);
-  h += `<div class="card"><h3>問題リスト（事前登録）</h3>
-    <table class="tbl"><tr><th>No.</th><th>ラウンド</th><th>形式</th><th>制限時間</th><th>正解</th><th>状態</th><th></th></tr>
-    ${list.map(([k, x]) => { const live = qs[k];
-      return `<tr class="${k === qid ? 'sel' : ''}"><td>${x.no}</td><td>${RN[x.round]}</td><td>${x.type === 'ox' ? '○×' : 'A〜D'}</td>
-        <td>${x.limit ? x.limit + '秒' : '手動'}</td><td><b>${lab(x.correct)}</b></td>
-        <td>${!live ? '未出題' : live.open ? '🟢 受付中' : live.graded ? '✅ 採点済' : '⏸ 締切'}</td>
-        <td>${b('qstart', live ? '再出題' : '▶ 出題', `data-q="${k}"`, live ? '' : 'main')} ${live ? b('viewq', '表示', `data-q="${k}"`) : ''} ${b('qdel', '削除', `data-q="${k}"`, 'warn')}</td></tr>`; }).join('')}
-    </table>
-    <div class="row" style="margin-top:10px">追加：
-      <select id="nq_round"><option value="1">R1</option><option value="0">練習（得点なし）</option><option value="4">R4 一発逆転</option></select>
-      <select id="nq_type"><option value="abcd">A〜D</option><option value="ox">○×</option></select>
-      正解 <select id="nq_cor">${['A', 'B', 'C', 'D', 'O', 'X'].map(c => `<option value="${c}">${lab(c)}</option>`).join('')}</select>
-      制限時間 <input id="nq_limit" type="number" value="${S.cfg.limitSec}" style="width:5em">秒（0＝手動で締切）
-      ${b('qadd', '＋ 追加', '', 'main')}</div>
-    <p class="hint">正解は管理者だけが使うデータに保存されます（参加者の画面には出ません）。出題すると、制限時間で自動締切 →「採点」ボタンで全員分を採点します。</p></div>`;
-  h += r4Card();
-  return h;
+  const ch = e?.choices || {};
+  return head('問題リスト', '当日出す問題を、出す順番に登録します。正解はここに入れておくと、採点ボタンで自動採点されます。<br>問題文・画像はPowerPointで見せるので、ここに入れるのは「形式・正解・制限時間」だけでOK。選択肢の文字を入れるとスマホにも表示されます（空欄ならA〜Dだけ）。')
+    + box(e ? `問題を編集（No.${e.no}）` : '問題を追加', `<div class="rowf">
+        <label>ラウンド <select id="f_round" data-keep>${[[1, 'R1 個人戦'], [0, '練習（得点なし）'], [4, 'R4 一発逆転']].map(([v, t]) => `<option value="${v}" ${e?.round === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+        <label>形式 <select id="f_type" data-keep><option value="abcd" ${e?.type === 'abcd' ? 'selected' : ''}>A〜D の4択</option><option value="ox" ${e?.type === 'ox' ? 'selected' : ''}>○×</option></select></label>
+        <label>正解 <select id="f_cor" data-keep>${['A', 'B', 'C', 'D', 'O', 'X'].map(c => `<option value="${c}" ${e?.correct === c ? 'selected' : ''}>${lab(c)}</option>`).join('')}</select></label>
+        <label>制限時間 <input id="f_limit" class="s" type="number" value="${e ? e.limit : S.cfg.limitSec}" data-keep> 秒</label></div>
+      <div class="rowf" style="margin-top:10px">${['A', 'B', 'C', 'D'].map(c => `<label>${c} <input id="f_${c}" value="${esc(ch[c] || '')}" placeholder="（任意）" style="width:11em" data-keep></label>`).join('')}</div>
+      <p class="hint">制限時間 0 ＝ 時間で締め切らない（R4 など、締切ボタンで手動）。○×の問題は正解を ○ か × に。</p>
+      <div class="rowf">${b('qsave', e ? '💾 変更を保存' : '＋ 追加する', '', 'main')}${e ? b('qcancel', 'キャンセル') : ''}</div>`)
+    + box(`登録済み（${list.length}問）`, list.length ? `<div class="scroll"><table class="tbl"><tr><th>No.</th><th>ラウンド</th><th>形式</th><th>正解</th><th>制限時間</th><th>選択肢</th><th>状態</th><th></th></tr>
+      ${list.map(([k, x]) => `<tr><td>${x.no}</td><td>${RN[x.round]}</td><td>${x.type === 'ox' ? '○×' : 'A〜D'}</td><td><b>${lab(x.correct)}</b></td><td>${x.limit ? x.limit + '秒' : '手動'}</td>
+        <td class="hint">${x.choices ? Object.entries(x.choices).filter(([, v]) => v).map(([c, v]) => `${c}:${esc(v)}`).join(' / ') : ''}</td>
+        <td>${S.questions?.[k] ? (S.questions[k].graded ? '採点済' : '出題済') : '<span class="muted">未出題</span>'}</td>
+        <td>${b('qedit', '編集', `data-q="${k}"`)} ${b('qdel', '削除', `data-q="${k}"`, 'warn')}</td></tr>`).join('')}</table></div>` : '<p class="muted">まだありません</p>');
 }
 
-function questionCard(qid, q) {
-  const ans = S.answers || {}, ql = S.secret?.qlist?.[qid] || {};
+// ===== 準備：R2の素材 =====
+function pgMat() {
+  const assets = S.toolAssets || [], tp = toArr(S.secret?.toolPts), ans = toArr(S.secret?.spotAns);
+  return head('R2 の素材', '道具選びの画像と点数、間違い探しの画像と正解の位置を登録します。')
+    + box('① 道具選び：画像（ファイル名の順に並びます）', `<div class="rowf"><input type="file" id="toolfiles" accept="image/*" multiple> ${b('toolupload', 'アップロード', '', 'main')} ${assets.length ? b('toolclear', '全部消す', '', 'warn') : ''}</div>
+      <p class="hint">画像ごとに「名前（スマホに表示）」と「点数（歴代上位3人のうち、その道具を持っていった人数）」を入れて保存してください。</p>
+      <div class="atiles">${assets.map((a, i) => `<div class="atile"><img src="${a.data}"><div class="muted">${String(i + 1).padStart(2, '0')}</div>
+        <input id="tl${i}" value="${esc(a.label || '')}" placeholder="名前" data-keep><input id="tp${i}" type="number" value="${tp[i] ?? 0}" placeholder="点数" data-keep></div>`).join('')}</div>
+      ${assets.length ? `<div class="rowf" style="margin-top:10px">${b('toolsave', '💾 名前と点数を保存', '', 'main')} <span class="hint">点数の合計：${tp.reduce((s, v) => s + (+v || 0), 0)}</span></div>` : ''}`)
+    + box('② 間違い探し：画像と正解の位置', `<div class="rowf"><input type="file" id="spotfile" accept="image/*"> ${b('spotupload', 'アップロード', '', 'main')}</div>
+      <p class="hint">画像の上をクリックすると正解の位置（緑の点線の円＝判定範囲）が追加されます。もう一度クリックで削除。正解 <b>${ans.length}</b> 個 → 〇をつけられる上限は ${ans.length + S.cfg.spotExtra} 個。</p>
+      ${S.spotAsset ? `<div class="spotadm"><div class="spotinner" id="aspot"><img src="${S.spotAsset.data}"><div class="marks" id="amarks"></div></div></div>` : ''}`);
+}
+function drawSpotAdmin() {
+  const el = document.getElementById('amarks'); if (!el) return;
+  const aspect = S.spotAsset?.aspect || 1, r = S.cfg.spotRadius;
+  const marks = L.page === 'spot' && L.spotTeam ? toArr(S.spot?.[L.spotTeam]?.marks) : [];
+  el.innerHTML = toArr(S.secret?.spotAns).map(a => `<div class="ans" style="left:${a.x * 100}%;top:${a.y * 100}%;width:${r * 200}%;height:${r * 200 / aspect}%"></div>`).join('')
+    + marks.map(m => `<div class="mark" style="left:${m.x * 100}%;top:${m.y * 100}%"></div>`).join('');
+}
+
+// ===== 準備：配点・設定 =====
+const CFG_LABEL = {
+  r1Max: ['R1', 'すぐ正解したときの得点'], r1Min: ['R1', '制限時間ぎりぎりで正解したときの得点'], limitSec: ['R1', '制限時間の初期値（秒）'],
+  teamSize: ['チーム', 'チームの定員'], teamRankPts: ['R2', 'チーム順位ごとの得点（1位から、カンマ区切り）'], pickCount: ['R2', '選ぶ道具の数'],
+  spotExtra: ['R2', '間違い探し：〇の上限＝正解数＋この数'], spotRadius: ['R2', '間違い探し：正解判定の半径（画像の幅に対する割合）'],
+  giftMul: ['R3', 'ゲーム内得点にかける倍率'], giftTurnSec: ['R3', '1手の制限時間（秒）'],
+  showRank: ['表示', '参加者の結果画面に「現在◯位」を出す'], testMode: ['テスト', 'テストモード（参加者画面に「ログイン画面に戻る」ボタンを出す）'],
+};
+function pgCfg() {
+  const rows = Object.keys(CFG_DEFAULT).map(k => {
+    const [g, t] = CFG_LABEL[k] || ['', k], v = S.cfg[k];
+    const input = typeof CFG_DEFAULT[k] === 'boolean' ? `<label class="chk"><input type="checkbox" id="cfg_${k}" ${v ? 'checked' : ''}> ON</label>`
+      : `<input id="cfg_${k}" value="${esc(Array.isArray(v) ? v.join(', ') : v)}" style="width:14em" data-keep>`;
+    return `<tr><td class="muted">${g}</td><td>${t}</td><td>${input}</td></tr>`;
+  }).join('');
+  return head('配点・設定', '得点はすべて0からの加点です（R4で外したときだけ減ります。0未満にはなりません）。')
+    + box('配点・設定', `<table class="tbl cfgt">${rows}</table><div class="rowf" style="margin-top:12px">${b('cfgsave', '💾 保存', '', 'main big')} ${b('cfgdefault', '初期値に戻す', '', 'warn')}</div>`)
+    + box('データ', `<div class="rowf">${b('backup', '⬇ バックアップ（JSON）')} ${b('wipeplay', '得点・回答・チーム・ペアだけ消す（リハーサル後）', '', 'warn')} ${b('wipe', 'すべて消す', '', 'warn')}</div>
+      <p class="hint">「得点・回答〜だけ消す」は、登録した参加者・問題リスト・画像・設定を残します。</p>`);
+}
+
+// ===== 本番：受付 =====
+function pgLobby() {
+  const url = playerURL();
+  return head('受付', '参加者にURL（またはQRコード）を開いてもらい、ニックネームを登録してもらいます。登録するとIDが表示されます。')
+    + `<div class="steps">${step(1, '参加者の画面を「待機（ID表示）」にする', '登録した人のスマホに、自分のIDが大きく表示されます。', phaseBtn('lobby'), S.state?.phase === 'lobby' ? 'done' : 'now')}</div>`
+    + box('参加者用URL', `<div class="rowf" style="align-items:flex-start"><img class="qr" alt="QR" src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=8&data=${encodeURIComponent(url)}">
+      <div style="flex:1;min-width:240px"><div class="url">${esc(url)}</div><p class="hint">このQRコードをスクリーンに映すと受付が早いです。</p></div></div>`)
+    + `<div class="kpis">${kpi('登録した人', uids().length)}${kpi('いま接続中', Object.keys(S.presence || {}).length)}</div>`
+    + box('登録した人', uids().length ? `<div class="rowf">${uids().map(k => `<span class="pill" style="border:1px solid #e6e0d2;border-radius:999px;padding:3px 10px">${who(k)} ${S.presence?.[k] ? '🟢' : '⚪'}</span>`).join('')}</div>` : '<p class="muted">まだいません</p>');
+}
+
+// ===== 本番：問題（R1・R4 共通） =====
+function questionPanel(rounds) {
+  const st = S.state || {}, qid = st.qid, q = S.questions?.[qid];
+  if (!q || !rounds.includes(q.round)) return '';
+  const ql = S.secret?.qlist?.[qid] || {}, ans = S.answers || {};
   const choices = q.type === 'ox' ? ['O', 'X'] : ['A', 'B', 'C', 'D'];
-  const n = Object.keys(ans).length;
-  const dist = Object.fromEntries(choices.map(c => [c, 0]));
-  for (const a of Object.values(ans)) dist[a.c] = (dist[a.c] || 0) + 1;
-  const max = Math.max(1, ...Object.values(dist));
-  const res = S.results?.[qid];
-  let h = `<div class="card" style="border:3px solid var(--mint)"><div class="row"><h3 style="margin:0">No.${q.no}（${RN[q.round]}・${q.type === 'ox' ? '○×' : 'A〜D'}）正解 <b>${lab(ql.correct)}</b></h3>
-      <span class="grow"></span>${q.open ? `🟢 受付中 ${q.limit ? timer(q.startAt + q.limit * 1000) : ''}` : q.graded ? '✅ 採点済' : '⏸ 締切'}</div>
-    <div class="row" style="align-items:flex-start;gap:30px;margin-top:8px"><div><div class="hint">回答</div><div class="bigstat">${n} / ${uids().length}</div></div>
-    <div class="dist grow">${choices.map(c => `<div class="drow"><span class="dl" style="background:${CHOICE_COLORS[c]}">${lab(c)}</span>
-      <span class="dbar" style="width:${dist[c] / max * 70}%"></span> ${dist[c]}</div>`).join('')}</div></div>
-    <div class="row" style="margin-top:8px">${q.open ? b('qclose', '⏹ 締切', `data-q="${qid}"`, 'warn') : b('qgrade', q.graded ? '🔁 採点し直す' : '✅ 採点', `data-q="${qid}"`, 'main')}
-      ${!q.open && q.graded ? b('showres', S.state?.result === qid ? '結果表示中' : '参加者に結果を表示', `data-k="${qid}"`) : ''}</div>`;
-  if (res) {
-    const rows = Object.entries(res).sort((a, b) => (b[1].pts || 0) - (a[1].pts || 0));
-    h += `<table class="tbl" style="margin-top:10px"><tr><th>ID</th><th>名前</th><th>回答</th>${q.round === 4 ? '<th>賭け金</th>' : '<th>時間</th>'}<th>判定</th><th>得点</th></tr>
-      ${rows.map(([k, r]) => { const a = ans[k];
-        return `<tr><td>${esc(sid(k))}</td><td>${esc(name(k))}</td><td>${a ? lab(a.c) : '—'}</td>
-        <td>${q.round === 4 ? fmtN(r.bet) : a ? ((a.t - q.startAt) / 1000).toFixed(2) + 's' : ''}</td>
-        <td>${r.res === 'ok' ? '○' : r.res === 'ng' ? '×' : '未回答'}</td><td><b>${r.pts > 0 ? '+' : ''}${fmtN(r.pts)}</b></td></tr>`; }).join('')}</table>`;
+  const dist = Object.fromEntries(choices.map(c => [c, 0])); for (const a of Object.values(ans)) dist[a.c] = (dist[a.c] || 0) + 1;
+  const max = Math.max(1, ...Object.values(dist)), n = Object.keys(ans).length;
+  const state = q.open ? 'open' : q.graded ? 'graded' : 'closed';
+  const steps = `<div class="steps">
+    ${step(1, '出題中', q.open ? (q.limit ? `制限時間で自動的に締め切ります（残り ${timer(q.startAt + q.limit * 1000)} 秒）` : '制限時間なし。全員答えたら締め切ってください') : '締め切りました', q.open ? b('qclose', '今すぐ締め切る', `data-q="${qid}"`, 'warn') : '', q.open ? 'now' : 'done')}
+    ${step(2, '採点して、スマホに結果を表示', '正解の人のスマホに「Correct!」と得点が出ます。', state === 'closed' ? b('qgrade', '✅ 採点する', `data-q="${qid}"`, 'main big') : state === 'graded' ? `<span class="ok">✓ 採点済み</span> ${b('qgrade', 'やり直す', `data-q="${qid}"`)}` : '', state === 'closed' ? 'now' : state === 'graded' ? 'done' : '')}
+    ${step(3, '次の問題へ', '下のリストから次の問題の「出題」を押します。', '', state === 'graded' ? 'now' : '')}</div>`;
+  let res = '';
+  const R = S.results?.[qid];
+  if (R) {
+    const rows = Object.entries(R).sort((a, b) => (b[1].pts || 0) - (a[1].pts || 0));
+    res = `<div class="scroll"><table class="tbl" style="margin-top:12px"><tr><th>参加者</th><th class="c">回答</th><th class="c">${q.round === 4 ? '賭け金' : '時間'}</th><th class="c">判定</th><th style="text-align:right">得点</th></tr>
+      ${rows.map(([k, r]) => { const a = ans[k]; return `<tr><td>${who(k)}</td><td class="c">${a ? lab(a.c) : '—'}</td>
+        <td class="c">${q.round === 4 ? fmtN(r.bet) : a ? ((a.t - q.startAt) / 1000).toFixed(1) + '秒' : ''}</td>
+        <td class="c">${r.res === 'ok' ? '<span class="ok">○</span>' : r.res === 'ng' ? '×' : '未回答'}</td><td class="r">${r.pts > 0 ? '+' : ''}${fmtN(r.pts)}</td></tr>`; }).join('')}</table></div>`;
   }
-  return h + '</div>';
+  return box(`いまの問題：${RN[q.round]} No.${q.no}（${q.type === 'ox' ? '○×' : 'A〜D'}・正解 ${lab(ql.correct)}）`, steps
+    + `<div class="rowf" style="align-items:flex-start;gap:28px;margin-top:14px"><div class="kpi">${`<div class="k">回答した人</div><div class="v">${n} / ${uids().length}</div>`}</div>
+      <div class="dist" style="flex:1;min-width:240px">${choices.map(c => `<div class="drow"><span class="dl ${ql.correct === c ? 'cor' : ''}" style="background:${CHOICE_COLORS[c]}">${lab(c)}</span><span class="dbar" style="width:${dist[c] / max * 70}%"></span>${dist[c]}人</div>`).join('')}</div></div>` + res);
 }
-
-function r4Card() {
+function questionList(rounds) {
+  const ql = S.secret?.qlist || {}, qs = S.questions || {};
+  const list = Object.entries(ql).filter(([, x]) => rounds.includes(x.round)).sort((a, b) => a[1].no - b[1].no);
+  if (!list.length) return box('問題リスト', `<p class="muted">このラウンドの問題がまだありません。${b('go', '問題リストへ', 'data-p="q"')}</p>`);
+  return box('出題する問題', `<div class="scroll"><table class="tbl"><tr><th>No.</th><th>ラウンド</th><th>形式</th><th>正解</th><th>制限時間</th><th>状態</th><th></th></tr>
+    ${list.map(([k, x]) => { const live = qs[k], cur = S.state?.qid === k;
+      return `<tr class="${cur ? 'sel' : ''}"><td>${x.no}</td><td>${RN[x.round]}</td><td>${x.type === 'ox' ? '○×' : 'A〜D'}</td><td>${lab(x.correct)}</td><td>${x.limit ? x.limit + '秒' : '手動'}</td>
+        <td>${!live ? '<span class="muted">未出題</span>' : live.open ? '🟢 出題中' : live.graded ? '<span class="ok">採点済</span>' : '締切'}</td>
+        <td>${b('qstart', live ? 'もう一度出題' : '▶ 出題', `data-q="${k}"`, live ? '' : 'main')}</td></tr>`; }).join('')}</table></div>`);
+}
+function pgR1() {
+  return head('練習・R1 個人戦', 'PowerPointで問題を映しながら、「▶ 出題」→（自動で締切）→「採点する」を繰り返します。')
+    + questionPanel([0, 1]) + questionList([0, 1]);
+}
+function pgR4() {
   const it = S.r4items || {};
   const rk = ranking(users(), points(), S.ctime), low = rk.slice(-3).reverse();
-  return `<div class="card"><h3>R4 妨害アイテム（管理者が設定）</h3>
-    <p class="hint">現在の下位3人（ビリから）：${low.map(r => who(r.id) + ` ${fmtN(r.total)}点`).join('　') || '—'}</p>
-    <table class="tbl"><tr><th>アイテム</th><th>使う人（ID）</th><th>相手（ID）</th><th>効果</th></tr>
-    ${Object.entries(ITEMS).map(([k, x]) => `<tr><td>${x.emoji} ${x.ja}</td>
-      <td><input id="it_${k}_h" value="${esc(sid(it[k]?.holder || ''))}" style="width:5em"> ${it[k]?.holder ? esc(name(it[k].holder)) : ''}</td>
-      <td><input id="it_${k}_t" value="${esc(sid(it[k]?.target || ''))}" style="width:5em"> ${it[k]?.target ? esc(name(it[k].target)) : ''}</td>
-      <td class="hint">${{ allin: '相手の賭け金を全額にする', steal: '相手が外したら、失った点の半分をもらう', ride: '相手が当てたら、稼いだ点の半分をもらう' }[k]}</td></tr>`).join('')}</table>
-    <div class="row">${b('itsave', '💾 保存', '', 'main')} ${b('itclear', '全部消す', '', 'warn')}
-      <span class="hint">${it.applied ? `問題 ${esc(it.applied)} の採点で適用済み` : 'R4の問題を採点するときに自動で適用されます（最初に採点したR4の問題だけ）'}</span></div></div>`;
+  return head('R4 一発逆転', '下位3人に妨害アイテムを渡してから、○×の問題を出します。賭け金は各自スマホで入力します。')
+    + box('① 妨害アイテムを設定（下位3人が誰に使うかを聞いて、ここに入力）', `<p class="hint">いまの下位3人（ビリから）：${low.map(r => `${who(r.id)}（${fmtN(r.total)}点）`).join('　') || '—'}<br>
+      選ぶ順番：ビリ → 下から2番目 → 下から3番目。指名された人には知らされません。</p>
+      <div class="scroll"><table class="tbl"><tr><th>アイテム</th><th>効果</th><th>使う人の ID</th><th>相手の ID</th></tr>
+      ${Object.entries(ITEMS).map(([k, x]) => `<tr><td><b>${x.emoji} ${x.ja}</b></td><td class="hint">${{ allin: '相手の賭け金を強制的に全額にする', steal: '相手が外したら、相手が失った点の半分をもらう', ride: '相手が当てたら、相手が稼いだ点の半分をもらう' }[k]}</td>
+        <td><input id="it_${k}_h" class="s" value="${esc(sid(it[k]?.holder || ''))}" data-keep> ${it[k]?.holder ? esc(name(it[k].holder)) : ''}</td>
+        <td><input id="it_${k}_t" class="s" value="${esc(sid(it[k]?.target || ''))}" data-keep> ${it[k]?.target ? esc(name(it[k].target)) : ''}</td></tr>`).join('')}</table></div>
+      <div class="rowf" style="margin-top:10px">${b('itsave', '💾 保存', '', 'main')} ${b('itclear', '全部消す', '', 'warn')} <span class="hint">${it.applied ? '✓ 採点で適用済み' : '最初に採点した R4 の問題で自動的に効果が計算されます'}</span></div>`)
+    + questionPanel([4]) + questionList([4]);
 }
 
-// ---- チーム・ペア ----
-function tabTeam() {
-  const teams = S.teams || {}, us = users(), pairs = S.pairs || {};
+// ===== 本番：チーム作り =====
+function pgTeam() {
+  const teams = S.teams || {}, us = users();
   const noTeam = uids().filter(k => !us[k].team || !teams[us[k].team]);
-  const noPair = uids().filter(k => !us[k].pair);
-  return `<div class="card"><h3>チーム（${Object.keys(teams).length}）</h3>
-    <table class="tbl"><tr><th>チーム</th><th>人数</th><th>メンバー（👑＝リーダー）</th></tr>
-    ${Object.entries(teams).sort((a, b) => parseInt(sid(a[0])) - parseInt(sid(b[0]))).map(([tid, t]) => `<tr><td>${tbadge(tid)}</td><td>${Object.keys(t.members || {}).length}</td>
-      <td>${Object.keys(t.members || {}).sort().map(k => (t.leader === k ? '👑' : '') + who(k)).join('　')}</td></tr>`).join('')}</table>
-    <p>未所属：${noTeam.map(who).join('　') || 'なし'}</p>
-    <div class="row">ID <input id="mt_u" style="width:4em"> → チーム <input id="mt_t" style="width:4em"> ${b('mteam', '割り当て')} ${b('mleader', 'リーダーにする')} ${b('unteam', 'チームから外す', '', 'warn')}</div>
-    <p class="hint">存在しないチーム番号を指定すると、その人がリーダーの新チームになります。</p></div>
-  <div class="card"><h3>ペア（${Object.keys(pairs).length}）</h3>
-    <table class="tbl"><tr><th>ペア</th><th></th></tr>${Object.entries(pairs).map(([pid, p]) => `<tr><td>${who(p.a)} 🤝 ${who(p.b)}</td><td>${b('unpair', '解除', `data-p="${pid}"`, 'warn')}</td></tr>`).join('')}</table>
-    <p>未成立：${noPair.map(k => who(k) + (us[k].pairReq ? `（→${esc(sid(us[k].pairReq))}）` : '')).join('　') || 'なし'}</p>
-    <div class="row">ID <input id="mp_a" style="width:4em"> 🤝 ID <input id="mp_b" style="width:4em"> ${b('mpair', 'ペアにする')}</div>
-    <p class="hint">奇数で余った人は、幹事が別のスマホで参加者登録して相手をしてください。</p></div>
-  <div class="card"><h3>参加者一覧</h3><table class="tbl"><tr><th>ID</th><th>名前</th><th>接続</th><th>チーム</th><th>ペア</th></tr>
-    ${uids().map(k => `<tr><td>${esc(sid(k))}</td><td>${esc(name(k))}</td><td>${S.presence?.[k] ? '🟢' : '⚪'}</td><td>${tbadge(us[k].team)}</td><td>${us[k].pair ? esc(us[k].pair.split('-').map(sid).join(' & ')) : ''}</td></tr>`).join('')}</table></div>`;
+  return head('チーム作り', '参加者が自分でチームを作ります。1人が「Create」でチームを作ると番号が出るので、他の人はその番号を入力して参加します（作った人がリーダー）。<br>アナウンス例：「日本人と留学生が2人ずつ以上になるように」')
+    + `<div class="steps">${step(1, '参加者の画面を「チーム作り」にする', '', phaseBtn('team'), S.state?.phase === 'team' ? 'done' : 'now')}</div>`
+    + `<div class="kpis">${kpi('チーム数', Object.keys(teams).length)}${kpi('まだチームがない人', noTeam.length)}${kpi('定員', S.cfg.teamSize + '人')}</div>`
+    + box('チーム一覧', teamTable(teams)) + box('まだチームがない人', noTeam.length ? noTeam.map(who).join('　') : '<span class="ok">全員そろいました</span>')
+    + box('手動で調整', `<div class="rowf">ID <input id="mt_u" class="s" data-keep> を チーム <input id="mt_t" class="s" data-keep> に ${b('mteam', '入れる', '', 'main')} ${b('mleader', 'リーダーにする')} ${b('unteam', 'チームから外す', '', 'warn')}</div>
+      <p class="hint">まだないチーム番号を入れると、その人がリーダーの新しいチームになります。</p>`);
 }
+const teamTable = teams => Object.keys(teams).length ? `<div class="scroll"><table class="tbl"><tr><th>チーム</th><th>人数</th><th>メンバー（👑＝リーダー）</th></tr>
+  ${Object.entries(teams).sort((a, b) => +sid(a[0]) - +sid(b[0])).map(([tid, t]) => `<tr><td>${tb(tid)}</td><td>${Object.keys(t.members || {}).length}</td>
+    <td>${Object.keys(t.members || {}).sort().map(k => (t.leader === k ? '👑' : '') + who(k)).join('　')}</td></tr>`).join('')}</table></div>` : '<p class="muted">まだありません</p>';
 
-// ---- ② R2 ----
+// ===== 本番：R2 道具選び =====
 function teamToolScores() {
   const tp = toArr(S.secret?.toolPts), sc = {};
   for (const tid of Object.keys(S.teams || {})) sc[tid] = S.tools?.team?.[tid] ? toolScore(S.tools.team[tid], tp) : 0;
   return sc;
 }
+function pgTools() {
+  const st = S.state || {}, assets = S.toolAssets || [], tp = toArr(S.secret?.toolPts), teams = S.teams || {};
+  const solo = S.tools?.solo || {}, tteam = S.tools?.team || {};
+  const open = st.phase === 'tools' && st.toolOpen && db.now() < (st.toolEndAt || 0);
+  const tsc = teamToolScores(), trp = rankPoints(tsc, S.cfg.teamRankPts);
+  const graded = !!S.results?.r2tools;
+  const s1 = st.phase === 'tools' && st.toolStep === 'solo', s2 = st.phase === 'tools' && st.toolStep === 'team';
+  const ready = assets.length && tp.some(v => +v);
+  const rows = Object.keys(teams).map(tid => {
+    const mem = Object.keys(teams[tid].members || {}), ss = mem.filter(k => solo[k]).map(k => toolScore(solo[k], tp));
+    return { tid, sc: tsc[tid], done: !!tteam[tid], avg: ss.length ? (ss.reduce((a, b) => a + b, 0) / ss.length).toFixed(1) : '—', n: ss.length, m: mem.length };
+  }).sort((a, b) => b.sc - a.sc);
+  return head('R2 道具選び', '①まず一人ずつ10個選ぶ → ②チームで話し合ってリーダーが提出 → ③採点（チーム順位で全員に加点）。')
+    + (!ready ? box('⚠ 準備ができていません', `<p>道具の画像と点数を登録してください。 ${b('go', 'R2 の素材へ', 'data-p="mat"', 'main')}</p>`) : '')
+    + `<div class="steps">
+      ${step(1, '個人で選ぶ（スマホを道具選びの画面にして開始）', `時間 <input id="toolmin1" class="s" type="number" value="1" step="0.5" data-keep> 分　${s1 && open ? `🟢 受付中 残り ${timer(st.toolEndAt)} 秒` : ''}`, s1 && open ? b('toolstop', '今すぐ締め切る', '', 'warn') : b('toolstart', '▶ 個人選択を開始', 'data-s="solo"', 'main'), s1 ? (open ? 'now' : 'done') : s2 || graded ? 'done' : 'now')}
+      ${step(2, 'チームで話し合って、リーダーが提出', `時間 <input id="toolmin2" class="s" type="number" value="6" step="0.5" data-keep> 分　${s2 && open ? `🟢 受付中 残り ${timer(st.toolEndAt)} 秒` : ''}`, s2 && open ? b('toolstop', '今すぐ締め切る', '', 'warn') : b('toolstart', '▶ チーム提出を開始', 'data-s="team"', 'main'), s2 ? (open ? 'now' : 'done') : graded ? 'done' : '')}
+      ${step(3, '採点して、スマホに順位を表示', 'チームの順位に応じて、メンバー全員に得点が入ります。', graded ? `<span class="ok">✓ 採点済み</span> ${b('grade2', 'やり直す', 'data-k="r2tools"')}` : b('grade2', '✅ 採点する', 'data-k="r2tools"', 'main big'), graded ? 'done' : s2 && !open ? 'now' : '')}</div>`
+    + `<div class="kpis">${kpi('個人で提出', `${Object.keys(solo).length} / ${uids().length}`)}${kpi('チームで提出', `${Object.keys(tteam).length} / ${Object.keys(teams).length}`)}</div>`
+    + box('結果（発表用）', rows.length ? `<div class="scroll"><table class="tbl"><tr><th>順位</th><th>チーム</th><th>チームの点</th><th>メンバー個人の平均点</th><th>選んだ道具</th><th style="text-align:right">加点</th></tr>
+      ${rows.map(r => `<tr><td>${trp.rank[r.tid]}位</td><td>${tb(r.tid)}</td><td class="r">${r.done ? r.sc : '未提出'}</td><td>${r.avg}（${r.n}/${r.m}人）</td>
+        <td class="hint">${toArr(tteam[r.tid]).map(i => assets[i]?.label || String(i + 1)).join('、')}</td><td class="r">+${fmtN(trp.pts[r.tid])}</td></tr>`).join('')}</table></div>
+      <p class="hint">「チームの点」と「個人の平均点」を並べると、話し合いで良くなったかが分かります。</p>` : '<p class="muted">チームがありません</p>');
+}
+
+// ===== 本番：R2 間違い探し =====
 function teamSpotScores() {
   const ans = toArr(S.secret?.spotAns), sc = {};
   for (const tid of Object.keys(S.teams || {})) sc[tid] = spotCount(S.spot?.[tid]?.marks, ans, S.cfg.spotRadius, S.spotAsset?.aspect || 1);
   return sc;
 }
-function tabR2() {
-  const st = S.state || {}, assets = S.toolAssets || [], tp = toArr(S.secret?.toolPts), teams = S.teams || {};
-  const solo = S.tools?.solo || {}, tteam = S.tools?.team || {};
-  const tsc = teamToolScores(), trp = rankPoints(tsc, S.cfg.teamRankPts);
-  const toolOpen = st.toolOpen && db.now() < (st.toolEndAt || 0);
-  const rows = Object.keys(teams).map(tid => {
-    const mem = Object.keys(teams[tid].members || {});
-    const ss = mem.filter(k => solo[k]).map(k => toolScore(solo[k], tp));
-    return { tid, sc: tsc[tid], done: !!tteam[tid], avg: ss.length ? (ss.reduce((a, b) => a + b, 0) / ss.length).toFixed(1) : '—', n: ss.length, m: mem.length };
-  }).sort((a, b) => b.sc - a.sc);
-  let h = `<div class="card"><h3>2-1 サバイバル道具選び</h3>
-    <div class="row">画像（複数可・ファイル名順）：<input type="file" id="toolfiles" accept="image/*" multiple> ${b('toolupload', '追加アップロード')} ${b('toolclear', '全削除', '', 'warn')}</div>
-    <p class="hint">${assets.length} 個。点数＝歴代上位3人のうち、その道具を選んだ人数。入力したら「点数を保存」。</p>
-    <div class="tools">${assets.map((a, i) => `<div class="tl"><img src="${a.data}"><span class="n">${i + 1}</span><div class="tname">${esc(a.name)}</div><input id="tp${i}" type="number" value="${tp[i] ?? 0}"></div>`).join('')}</div>
-    <div class="row" style="margin-top:8px">${b('toolpts', '💾 点数を保存', '', 'main')}</div><hr style="border:0;border-top:1px solid var(--line)">
-    <div class="row">時間 <input id="toolmin" type="number" value="1" step="0.5" style="width:4em">分
-      ${b('toolstart', '① 個人選択を開始', 'data-s="solo"', st.phase === 'tools' && st.toolStep === 'solo' && toolOpen ? 'on' : '')}
-      ${b('toolstart', '② チーム提出を開始', 'data-s="team"', st.phase === 'tools' && st.toolStep === 'team' && toolOpen ? 'on' : '')}
-      ${b('toolstop', '⏹ 締切')} ${toolOpen ? `🟢 ${st.toolStep === 'solo' ? '個人' : 'チーム'} 受付中 ${timer(st.toolEndAt)}` : ''}</div>
-    <p>個人提出 <b>${Object.keys(solo).length}</b> / ${uids().length}　チーム提出 <b>${Object.keys(tteam).length}</b> / ${Object.keys(teams).length}</p>
-    <table class="tbl"><tr><th>順位</th><th>チーム</th><th>チーム点</th><th>個人平均（提出人数）</th><th>選んだ道具</th><th>加算</th></tr>
-    ${rows.map(r => `<tr><td>${trp.rank[r.tid]}</td><td>${tbadge(r.tid)}</td><td><b>${r.done ? r.sc : '未提出(0)'}</b></td><td>${r.avg}（${r.n}/${r.m}）</td>
-      <td>${toArr(tteam[r.tid]).map(i => i + 1).join(', ')}</td><td>${fmtN(trp.pts[r.tid])}</td></tr>`).join('')}</table>
-    <div class="row">${b('grade2', '✅ 採点（順位点を加算）', 'data-k="r2tools"', 'main')} ${S.results?.r2tools ? '✅ 採点済' : ''}</div></div>`;
-
-  const ans = toArr(S.secret?.spotAns), ssc = teamSpotScores(), srp = rankPoints(ssc, S.cfg.teamRankPts);
-  const spotOpen = st.spotOpen && db.now() < (st.spotEndAt || 0);
-  h += `<div class="card"><h3>2-2 間違い探し</h3>
-    <div class="row">画像：<input type="file" id="spotfile" accept="image/*"> ${b('spotupload', 'アップロード')}</div>
-    <p class="hint">画像をクリックで正解位置を追加／もう一度クリックで削除（緑の点線＝判定範囲）。正解 ${ans.length} 個 → 〇の上限 ${ans.length + S.cfg.spotExtra} 個。</p>
-    <div class="row">チームの〇を重ねて確認：<select id="spotteam"><option value="">なし</option>${Object.keys(teams).map(t => `<option value="${t}" ${L.spotTeam === t ? 'selected' : ''}>T${sid(t)}</option>`).join('')}</select></div>
-    ${S.spotAsset ? `<div class="spotwrap" style="max-width:900px;max-height:none;margin-top:8px"><div class="spotinner" id="aspot"><img src="${S.spotAsset.data}"><div class="marks" id="amarks"></div></div></div>` : ''}
-    <div class="row" style="margin-top:8px">時間 <input id="spotmin" type="number" value="5" style="width:4em">分 ${b('spotstart', '▶ 開始', '', 'main')} ${b('spotstop', '⏹ 終了')}
-      ${spotOpen ? '🟢 受付中 ' + timer(st.spotEndAt) : ''}</div>
-    <table class="tbl"><tr><th>順位</th><th>チーム</th><th>正解数</th><th>〇の数</th><th>加算</th></tr>
-      ${Object.keys(teams).sort((a, b) => ssc[b] - ssc[a]).map(t => `<tr><td>${srp.rank[t]}</td><td>${tbadge(t)}</td><td><b>${ssc[t]}</b></td><td>${toArr(S.spot?.[t]?.marks).length}</td><td>${fmtN(srp.pts[t])}</td></tr>`).join('')}</table>
-    <div class="row">${b('grade2', '✅ 採点（順位点を加算）', 'data-k="r2spot"', 'main')} ${S.results?.r2spot ? '✅ 採点済' : ''}</div></div>`;
-  return h;
-}
-function drawSpotAdmin() {
-  const el = document.getElementById('amarks'); if (!el) return;
-  const aspect = S.spotAsset?.aspect || 1, r = S.cfg.spotRadius;
-  const marks = L.spotTeam ? toArr(S.spot?.[L.spotTeam]?.marks) : [];
-  el.innerHTML = toArr(S.secret?.spotAns).map(a => `<div class="ans" style="left:${a.x * 100}%;top:${a.y * 100}%;width:${r * 200}%;height:${r * 200 / aspect}%"></div>`).join('')
-    + marks.map(m => `<div class="mark" style="left:${m.x * 100}%;top:${m.y * 100}%"></div>`).join('');
+function pgSpot() {
+  const st = S.state || {}, teams = S.teams || {}, ans = toArr(S.secret?.spotAns);
+  const open = st.phase === 'spot' && st.spotOpen && db.now() < (st.spotEndAt || 0);
+  const sc = teamSpotScores(), rp = rankPoints(sc, S.cfg.teamRankPts), graded = !!S.results?.r2spot, started = st.phase === 'spot';
+  return head('R2 間違い探し', 'チーム全員のスマホに画像が出ます。〇をつけられるのはリーダーだけ。時間内に正しく見つけた数で順位を決めます。')
+    + (!S.spotAsset || !ans.length ? box('⚠ 準備ができていません', `<p>間違い探しの画像と正解の位置を登録してください。 ${b('go', 'R2 の素材へ', 'data-p="mat"', 'main')}</p>`) : '')
+    + `<div class="steps">
+      ${step(1, 'スマホを間違い探しの画面にして開始', `時間 <input id="spotmin" class="s" type="number" value="5" data-keep> 分　${open ? `🟢 受付中 残り ${timer(st.spotEndAt)} 秒` : ''}`, open ? b('spotstop', '今すぐ終了', '', 'warn') : b('spotstart', '▶ 開始', '', 'main'), open ? 'now' : started || graded ? 'done' : 'now')}
+      ${step(2, '採点して、スマホに順位を表示', '', graded ? `<span class="ok">✓ 採点済み</span> ${b('grade2', 'やり直す', 'data-k="r2spot"')}` : b('grade2', '✅ 採点する', 'data-k="r2spot"', 'main big'), graded ? 'done' : started && !open ? 'now' : '')}</div>`
+    + box('結果（発表用）', `<div class="scroll"><table class="tbl"><tr><th>順位</th><th>チーム</th><th>正しく見つけた数</th><th>つけた〇の数</th><th style="text-align:right">加点</th></tr>
+      ${Object.keys(teams).sort((a, b2) => sc[b2] - sc[a]).map(t => `<tr><td>${rp.rank[t]}位</td><td>${tb(t)}</td><td class="r">${sc[t]} / ${ans.length}</td><td>${toArr(S.spot?.[t]?.marks).length}</td><td class="r">+${fmtN(rp.pts[t])}</td></tr>`).join('')}</table></div>`)
+    + (S.spotAsset ? box('チームの〇を確認', `<div class="rowf" style="margin-bottom:10px">チーム <select id="spotteam"><option value="">選ぶ</option>${Object.keys(teams).map(t => `<option value="${t}" ${L.spotTeam === t ? 'selected' : ''}>チーム${sid(t)}</option>`).join('')}</select>
+      <span class="hint">赤い〇＝チームがつけた〇、緑の点線＝正解</span></div><div class="spotadm"><div class="spotinner"><img src="${S.spotAsset.data}"><div class="marks" id="amarks"></div></div></div>`) : '');
 }
 
-// ---- ③ R3 ----
-function tabR3() {
+// ===== 本番：ペア作り =====
+function pgPair() {
+  const pairs = S.pairs || {}, us = users(), noPair = uids().filter(k => !us[k].pair);
+  return head('ペア作り', 'お互いに相手のIDを入力するとペアが成立します。R3 はこのペアで最後まで戦います（組み直しなし）。')
+    + `<div class="steps">${step(1, '参加者の画面を「ペア作り」にする', '', phaseBtn('pair'), S.state?.phase === 'pair' ? 'done' : 'now')}</div>`
+    + `<div class="kpis">${kpi('成立したペア', Object.keys(pairs).length)}${kpi('まだの人', noPair.length)}</div>`
+    + box('まだペアがいない人', noPair.length ? noPair.map(k => who(k) + (us[k].pairReq ? `<span class="hint">（→ ${esc(sid(us[k].pairReq))} を入力済み）</span>` : '')).join('　')
+      + (noPair.length % 2 ? '<p class="hint">奇数です。幹事が別のスマホで参加者登録して相手をしてください。</p>' : '') : '<span class="ok">全員そろいました</span>')
+    + box('ペア一覧', pairTable(pairs))
+    + box('手動でペアにする', `<div class="rowf">ID <input id="mp_a" class="s" data-keep> と ID <input id="mp_b" class="s" data-keep> を ${b('mpair', 'ペアにする', '', 'main')}</div>`);
+}
+const pairTable = pairs => Object.keys(pairs).length ? `<div class="scroll"><table class="tbl">${Object.entries(pairs).map(([pid, p]) => `<tr><td>${who(p.a)}　🤝　${who(p.b)}</td><td style="text-align:right">${b('unpair', '解除', `data-p="${pid}"`, 'warn')}</td></tr>`).join('')}</table></div>` : '<p class="muted">まだありません</p>';
+
+// ===== 本番：R3 プレゼントツリー =====
+function pgGift() {
   const st = S.state || {}, pairs = S.pairs || {}, games = S.gift || {};
   const played = Object.keys(games).map(k => +k.slice(1)).sort((a, b) => a - b);
-  const n = L.giftN || st.giftGame || played[played.length - 1] || 1;
-  const gs = games['g' + n] || {};
-  const done = Object.values(gs).filter(g => g.over).length;
-  let h = `<div class="card"><h3>3 プレゼント選び（旧：爆弾回避）</h3>
-    <div class="row">1手の制限時間 <input id="gsec" type="number" value="${S.cfg.giftTurnSec}" style="width:4em">秒 ${b('gsecsave', '変更')}
-      <span class="hint">（時間切れはランダムで進みます。押していたら短くしてください）</span></div>
-    <div class="row" style="margin-top:8px">${b('giftstart', `▶ ゲーム ${(played[played.length - 1] || 0) + 1} を開始`, `data-n="${(played[played.length - 1] || 0) + 1}"`, 'main')}
-      ${played.map(k => b('giftview', `ゲーム${k}`, `data-n="${k}"`, k === n ? 'on' : '')).join('')}
-      ${played.length ? b('giftstart', `ゲーム ${n} をやり直す`, `data-n="${n}"`, 'warn') : ''}</div>
-    <p class="hint">2回目以降は、最初に💣を入れる人が前のゲームと入れ替わります。各ペアは終わった時点で自動で加点されます（ゲーム内得点 × ${S.cfg.giftMul}）。ペアは組み直しません。</p>
-    ${played.length ? `<p>ゲーム ${n}：終了 <b>${done}</b> / ${Object.keys(gs).length} ペア</p>` : ''}</div>`;
-  h += `<div class="ggrid">${Object.keys(pairs).map(pid => { const g = gs[pid];
-    if (!g) return `<div class="card">${who(pairs[pid].a)} 🤝 ${who(pairs[pid].b)}：未開始</div>`;
-    const setter = g[g.setter], picker = g[other(g.setter)];
-    const hist = toArr(g.log).filter(e => !e.final).map(e => `T${e.turn}:💣${e.pos}`).join(' ');
-    return `<div class="card">${giftTable(g)}
-      ${g.over ? `<p><b>🎉 終了</b>　${who(g.a)} +${fmtN((g.score?.a || 0) * S.cfg.giftMul)}　${who(g.b)} +${fmtN((g.score?.b || 0) * S.cfg.giftMul)}</p>`
-        : `<p>Turn ${g.turn}：${g.phase === 'set' ? `💣を入れる番 ${who(setter)}` : `🎁開ける番 ${who(picker)}（💣は <b style="color:var(--red);font-size:18px">${g.pos}</b>）`} ${g.deadline ? timer(g.deadline) : ''}</p>`}
-      <div class="row">${remaining(g).map(k => `<div style="width:30px;font-size:8px">${giftHTML(k, g.pos === k ? 'bomb' : '', g.pos === k ? '💣' : k)}</div>`).join('')}</div>
-      <p class="hint">💣の履歴：${hist || '—'}</p>
-      ${!g.over ? `<div class="row">${b('giftskip', 'ランダムで1手進める', `data-n="${n}" data-p="${pid}"`)}</div>` : ''}</div>`; }).join('')}</div>`;
-  return h;
+  const next = (played[played.length - 1] || 0) + 1;
+  const n = L.giftN || st.giftGame || played[played.length - 1] || 1, gs = games['g' + n] || {};
+  const done = Object.values(gs).filter(g => g.over).length, tot = Object.keys(gs).length;
+  return head('R3 プレゼントツリー', '1〜10のプレゼントのどれかに💣を入れ、相手が1つ開けます。💣ならその人の点数は0に戻ります（ゲームは続く）。<br>各ペアは終わった時点で自動的に加点されます（ゲーム内の点数 × ' + S.cfg.giftMul + '）。')
+    + (!Object.keys(pairs).length ? box('⚠ ペアがいません', `<p>先にペア作りをしてください。 ${b('go', 'ペア作りへ', 'data-p="pair"', 'main')}</p>`) : '')
+    + `<div class="steps">${step(1, `ゲーム ${next} を開始`, next > 1 ? '最初に💣を入れる人は、前のゲームと入れ替わります。' : '最初に💣を入れる人はランダムで決まります。', b('giftstart', `▶ ゲーム ${next} を開始`, `data-n="${next}"`, 'main big'), played.length ? '' : 'now')}
+      ${step(2, '1手の制限時間', '時間切れの手はランダムで進みます。押していたら短くしてください。', `<input id="gsec" class="s" type="number" value="${S.cfg.giftTurnSec}" data-keep> 秒 ${b('gsecsave', '変更')}`)}</div>`
+    + (played.length ? `<div class="rowf" style="margin:14px 0">表示するゲーム：${played.map(k => b('giftview', `ゲーム${k}`, `data-n="${k}"`, k === n ? 'on' : '')).join('')} ${b('giftstart', `ゲーム ${n} をやり直す`, `data-n="${n}"`, 'warn')}</div>
+      <div class="kpis">${kpi(`ゲーム${n}：終わったペア`, `${done} / ${tot}`)}</div>` : '')
+    + `<div class="cards2">${Object.keys(pairs).map(pid => giftCard(pid, gs[pid], n)).join('')}</div>`;
 }
-function giftTable(g) {
-  const log = toArr(g.log), rows = ['a', 'b'].map(s => log.filter(e => e.side === s));
-  const cols = Math.max(3, ...rows.map(r => r.length));
-  return `<table class="tbl"><tr><th></th>${[...Array(cols)].map((_, i) => `<th>${i + 1}</th>`).join('')}<th>💣</th><th>TOTAL</th></tr>` +
-    ['a', 'b'].map((s, k) => `<tr><td>${who(g[s])}</td>${[...Array(cols)].map((_, i) => { const e = rows[k][i];
-      return `<td>${!e ? '' : e.bomb ? '💣' : `${e.cum}<small>+${e.num}</small>`}</td>`; }).join('')}<td>${g.bombs?.[s] || 0}</td><td class="tot">${g.score?.[s] || 0}</td></tr>`).join('') + '</table>';
+function giftCard(pid, g, n) {
+  const p = S.pairs[pid];
+  if (!g) return `<div class="box">${who(p.a)} 🤝 ${who(p.b)}<p class="muted">未開始</p></div>`;
+  const rem = remaining(g), log = toArr(g.log);
+  const row = s => `<tr><td>${who(g[s])}</td><td class="hint">${log.filter(e => e.side === s).map(e => e.bomb ? '💣' : '+' + e.num).join(' ')}</td><td class="r">${g.score?.[s] || 0}</td></tr>`;
+  return `<div class="box" style="margin:0"><table class="tbl">${row('a')}${row('b')}</table>
+    ${g.over ? `<p class="ok">✓ 終了　${esc(name(g.a))} +${fmtN((g.score?.a || 0) * S.cfg.giftMul)} ／ ${esc(name(g.b))} +${fmtN((g.score?.b || 0) * S.cfg.giftMul)}</p>`
+      : `<p>Turn ${g.turn}：${g.phase === 'set' ? `${who(g[g.setter])} が💣を入れる番` : `${who(g[other(g.setter)])} が開ける番（💣は <b style="color:#d2405e">${g.pos}</b>）`} 残り ${g.deadline ? timer(g.deadline) : '-'} 秒</p>`}
+    <div class="giftmini">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(k => `<i class="${!rem.includes(k) ? 'g' : ''} ${g.pos === k ? 'b' : ''}">${k}</i>`).join('')}</div>
+    ${!g.over ? `<div class="rowf" style="margin-top:8px">${b('giftskip', 'ランダムで1手進める', `data-n="${n}" data-p="${pid}"`)}</div>` : ''}</div>`;
 }
 
-// ---- ランキング ----
-function tabRank() {
+// ===== 本番：結果発表 =====
+function pgFinal() {
   const rk = ranking(users(), points(), S.ctime), n = rk.length;
-  return `<div class="card"><h3>ランキング（参加者の画面には出ません）</h3>
-    <table class="tbl"><tr><th>順位</th><th>ID</th><th>名前</th><th>チーム</th><th>合計</th><th>正解時間の合計</th><th>内訳</th></tr>
-    ${rk.map((r, i) => `<tr class="${i >= n - 3 && n > 3 ? 'low' : ''}"><td><b>${i + 1}</b></td><td>${esc(sid(r.id))}</td><td>${esc(r.name)}</td><td>${tbadge(r.team)}</td>
-      <td><b style="font-size:17px">${fmtN(r.total)}</b></td><td>${(r.ctime / 1000).toFixed(1)}s</td>
-      <td class="hint">${Object.entries(points()[r.id] || {}).map(([k, v]) => `${k.startsWith('m') && k.length > 8 ? '手動' : k}:${v}`).join('　')}</td></tr>`).join('')}</table>
-    <p class="hint">同点は「正解した問題の合計回答時間」が短い方が上。ピンクは下位3人（R4のアイテム対象）。</p></div>
-  <div class="card"><h3>得点の手動修正</h3><div class="row">ID <input id="mp_id" style="width:4em"> 点 <input id="mp_pt" type="number" style="width:7em">
-    ${b('manualpt', '加算（マイナス可）', '', 'main')}</div></div>`;
+  return head('結果発表', '最終順位です（参加者のスマホには出ません）。同点のときは「正解した問題の合計回答時間」が短い方が上。')
+    + `<div class="steps">${step(1, '参加者の画面を「終了」にする', '', phaseBtn('end'), S.state?.phase === 'end' ? 'done' : '')}</div>`
+    + box('最終順位', rankTable(rk, n));
+}
+const rankTable = (rk, n) => `<div class="scroll"><table class="tbl"><tr><th>順位</th><th>参加者</th><th>チーム</th><th style="text-align:right">合計</th><th>内訳</th></tr>
+  ${rk.map((r, i) => `<tr class="${i >= n - 3 && n > 3 ? 'low' : ''}"><td><b style="font-family:var(--serif);font-size:20px">${i === 0 ? '🏆 ' : ''}${i + 1}</b></td><td>${who(r.id)}</td><td>${tb(r.team)}</td>
+    <td class="r" style="font-size:22px">${fmtN(r.total)}</td><td class="hint">${breakdown(r.id)}</td></tr>`).join('')}</table></div>`;
+function breakdown(k) {
+  const p = points()[k] || {}, ql = S.secret?.qlist || {};
+  const g = { R1: 0, R2: 0, R3: 0, R4: 0, 手動: 0 };
+  for (const [src, v] of Object.entries(p)) {
+    if (src.startsWith('r2')) g.R2 += v; else if (src.startsWith('r3')) g.R3 += v; else if (/^m\d{6,}/.test(src)) g.手動 += v;
+    else if (ql[src]?.round === 4) g.R4 += v; else g.R1 += v;
+  }
+  return Object.entries(g).filter(([, v]) => v).map(([kk, v]) => `${kk} ${v > 0 ? '+' : ''}${fmtN(v)}`).join('　');
 }
 
-// ---- 設定 ----
-const CFG_LABEL = {
-  r1Max: 'R1：すぐ正解したときの得点', r1Min: 'R1：制限時間ぎりぎりで正解したときの得点', limitSec: 'R1：制限時間の初期値（秒）',
-  teamSize: 'チームの定員', teamRankPts: 'R2：チーム順位ごとの得点（カンマ区切り、1位から）', pickCount: 'R2：選ぶ道具の数',
-  spotExtra: 'R2：〇の上限＝正解数＋この数', spotRadius: 'R2：正解判定の半径（画像幅に対する割合）',
-  giftMul: 'R3：ゲーム内得点にかける倍率', giftTurnSec: 'R3：1手の制限時間（秒）',
-};
-function tabCfg() {
-  return `<div class="card"><h3>配点・設定</h3><table class="tbl">${Object.keys(CFG_DEFAULT).map(k => `<tr><td style="text-align:left">${CFG_LABEL[k] || k}</td>
-    <td><input id="cfg_${k}" value="${esc(Array.isArray(S.cfg[k]) ? S.cfg[k].join(', ') : S.cfg[k])}" style="width:16em"></td></tr>`).join('')}</table>
-    <div class="row">${b('cfgsave', '💾 保存', '', 'main')} ${b('cfgdefault', '初期値に戻す', '', 'warn')}</div></div>
-  <div class="card"><h3>データ</h3><div class="row">${b('backup', '⬇ バックアップ（JSON）')} ${b('wipe', '⚠ 全データ削除（リハーサル後など）', '', 'warn')}
-    ${b('wipeplay', '⚠ 得点・回答だけ削除（登録・画像・問題は残す）', '', 'warn')}</div>
-    <p class="hint">参加者画面：<code>${esc(location.href.replace(/admin\.html.*$/, ''))}</code></p></div>`;
+// ===== 管理：参加者 =====
+function pgPeople() {
+  const us = users();
+  return head('参加者・チーム・ペア', '全員の状態の確認と、手動での調整ができます。')
+    + box(`参加者（${uids().length}人）`, `<div class="scroll"><table class="tbl"><tr><th>参加者</th><th>接続</th><th>チーム</th><th>ペア</th><th style="text-align:right">得点</th><th></th></tr>
+      ${uids().map(k => `<tr><td>${who(k)}</td><td>${S.presence?.[k] ? '🟢' : '⚪'}</td><td>${tb(us[k].team)}${us[k].team && S.teams?.[us[k].team]?.leader === k ? ' 👑' : ''}</td>
+        <td>${us[k].pair ? us[k].pair.split('-').filter(x => x !== k).map(who).join('') : '—'}</td><td class="r">${fmtN(total(k))}</td>
+        <td style="text-align:right">${b('deluser', '削除', `data-u="${k}"`, 'warn')}</td></tr>`).join('')}</table></div>`)
+    + box('チーム', teamTable(S.teams || {}) + `<div class="rowf" style="margin-top:10px">ID <input id="mt_u" class="s" data-keep> を チーム <input id="mt_t" class="s" data-keep> に ${b('mteam', '入れる', '', 'main')} ${b('mleader', 'リーダーにする')} ${b('unteam', 'チームから外す', '', 'warn')}</div>`)
+    + box('ペア', pairTable(S.pairs || {}) + `<div class="rowf" style="margin-top:10px">ID <input id="mp_a" class="s" data-keep> と ID <input id="mp_b" class="s" data-keep> を ${b('mpair', 'ペアにする', '', 'main')}</div>`);
 }
 
-// ---------------- 操作 ----------------
+// ===== 管理：得点 =====
+function pgScore() {
+  const rk = ranking(users(), points(), S.ctime);
+  return head('得点の修正', 'トラブルがあったときに、手動で点を足したり引いたりできます。')
+    + box('手動で加点・減点', `<div class="rowf">ID <input id="mp_id" class="s" data-keep> に <input id="mp_pt" type="number" style="width:8em" data-keep> 点 ${b('manualpt', '加える（マイナスで減点）', '', 'main')}</div>`)
+    + box('現在の順位', rankTable(rk, rk.length));
+}
+
+// ---------- 操作 ----------
 const val = id => document.getElementById(id)?.value?.trim() ?? '';
 const setState = obj => db.update('state', obj);
-
-async function setPoints(src, map) {
-  const up = {};
-  for (const k of uids()) up[`${k}/${src}`] = map[k] ?? null;
-  await db.update('points', up);
-}
+async function setPoints(src, map) { const up = {}; for (const k of uids()) up[`${k}/${src}`] = map[k] ?? null; await db.update('points', up); }
 function teamMemberResults(teamScores) {
   const { pts, rank } = rankPoints(teamScores, S.cfg.teamRankPts), pmap = {}, res = {};
   for (const [tid, t] of Object.entries(S.teams || {})) for (const k of Object.keys(t.members || {})) { pmap[k] = pts[tid] ?? 0; res[k] = { rank: rank[tid], pts: pts[tid] ?? 0 }; }
@@ -273,21 +355,13 @@ function teamMemberResults(teamScores) {
 }
 async function teamAdd(tid, k) {
   await teamRemove(k);
-  await db.txn('teams/' + tid, cur => {
-    cur = cur || { leader: k, members: {} };
-    cur.members = { ...(cur.members || {}), [k]: true }; if (!cur.leader) cur.leader = k; return cur;
-  }, true);
-  const n = parseInt(sid(tid)); await db.txn('meta/teamCounter', c => Math.max(c || 0, n), true);
+  await db.txn('teams/' + tid, cur => { cur = cur || { leader: k, members: {} }; cur.members = { ...(cur.members || {}), [k]: true }; if (!cur.leader) cur.leader = k; return cur; }, true);
+  const n = +sid(tid); await db.txn('meta/teamCounter', c => Math.max(c || 0, n), true);
   await db.set(`users/${k}/team`, tid);
 }
 async function teamRemove(k) {
   const old = users()[k]?.team; if (!old) return;
-  await db.txn('teams/' + old, cur => {
-    delete (cur.members || {})[k];
-    const rest = Object.keys(cur.members || {}).sort();
-    if (!rest.length) return null;
-    if (cur.leader === k) cur.leader = rest[0]; return cur;
-  });
+  await db.txn('teams/' + old, cur => { delete (cur.members || {})[k]; const rest = Object.keys(cur.members || {}).sort(); if (!rest.length) return null; if (cur.leader === k) cur.leader = rest[0]; return cur; });
   await db.set(`users/${k}/team`, null);
 }
 async function unpair(pid) {
@@ -302,27 +376,39 @@ async function giftStep(path, force) {
 }
 
 const ACT = {
-  phase: el => setState({ phase: el.dataset.p }),
-  tab: el => { L.tab = el.dataset.t; localStorage.setItem('xmas_admin_tab', L.tab); render(); },
+  go: el => { L.page = el.dataset.p; localStorage.setItem('xmas_admin_page', L.page); scrollTo(0, 0); render(); },
+  phase: el => setState({ phase: el.dataset.p, result: null }),
 
-  async qadd() {
-    const round = +val('nq_round'), type = val('nq_type'), correct = val('nq_cor'), limit = Math.max(0, +val('nq_limit') || 0);
-    if (type === 'ox' && !['O', 'X'].includes(correct)) return alert('○×の問題は正解を ○ か × にしてください');
-    if (type === 'abcd' && !['A', 'B', 'C', 'D'].includes(correct)) return alert('A〜Dの問題は正解を A〜D にしてください');
-    const n = await db.txn('meta/qCounter', c => (c || 0) + 1, true);
-    const no = Object.keys(S.secret?.qlist || {}).length + 1;
-    await db.set(`secret/qlist/q${n}`, { no, round, type, correct, limit });
+  async qsave() {
+    const round = +val('f_round'), type = val('f_type'), correct = val('f_cor'), limit = Math.max(0, +val('f_limit') || 0);
+    if (type === 'ox' && !['O', 'X'].includes(correct)) return alert('○×の問題は、正解を ○ か × にしてください');
+    if (type === 'abcd' && !['A', 'B', 'C', 'D'].includes(correct)) return alert('A〜Dの問題は、正解を A〜D から選んでください');
+    const choices = {}; if (type === 'abcd') for (const c of ['A', 'B', 'C', 'D']) if (val('f_' + c)) choices[c] = val('f_' + c);
+    const data = { round, type, correct, limit, choices: Object.keys(choices).length ? choices : null };
+    if (L.editQ) { await db.update(`secret/qlist/${L.editQ}`, data); L.editQ = null; }
+    else {
+      const n = await db.txn('meta/qCounter', c => (c || 0) + 1, true);
+      await db.set(`secret/qlist/q${n}`, { ...data, no: Object.keys(S.secret?.qlist || {}).length + 1 });
+    }
+    for (const c of ['A', 'B', 'C', 'D']) document.getElementById('f_' + c)?.remove();
+    render();
   },
-  qdel: el => confirm('この問題をリストから削除しますか？') && db.set(`secret/qlist/${el.dataset.q}`, null),
+  qedit: el => { document.querySelectorAll('[id^=f_]').forEach(i => i.remove()); L.editQ = el.dataset.q; app._html = ''; render(); scrollTo(0, 0); },
+  qcancel: () => { document.querySelectorAll('[id^=f_]').forEach(i => i.remove()); L.editQ = null; app._html = ''; render(); },
+  async qdel(el) {
+    if (!confirm('この問題を削除しますか？')) return;
+    await db.set(`secret/qlist/${el.dataset.q}`, null);
+    const rest = Object.entries(S.secret?.qlist || {}).filter(([k]) => k !== el.dataset.q).sort((a, b) => a[1].no - b[1].no);
+    const up = {}; rest.forEach(([k], i) => { up[`${k}/no`] = i + 1; }); if (rest.length) await db.update('secret/qlist', up);
+  },
   async qstart(el) {
     const qid = el.dataset.q, x = S.secret.qlist[qid];
-    if (S.questions?.[qid] && !confirm('もう一度出題すると、この問題の回答・得点はリセットされます。よいですか？')) return;
+    if (S.questions?.[qid] && !confirm('もう一度出題すると、この問題の回答と得点はリセットされます。よいですか？')) return;
     await db.set('answers/' + qid, null); await db.set('results/' + qid, null);
-    await db.set('questions/' + qid, { no: x.no, round: x.round, type: x.type, limit: x.limit, open: true, startAt: TS });
+    await setPoints(qid, {});
+    await db.set('questions/' + qid, { no: x.no, round: x.round, type: x.type, limit: x.limit, choices: x.choices || null, open: true, startAt: TS });
     await setState({ phase: 'quiz', qid, result: null });
-    L.viewQ = null;
   },
-  viewq: el => { L.viewQ = el.dataset.q === S.state?.qid ? null : el.dataset.q; render(); },
   qclose: el => db.update('questions/' + el.dataset.q, { open: false }),
   async qgrade(el) {
     const qid = el.dataset.q, q = S.questions[qid], correct = S.secret?.qlist?.[qid]?.correct;
@@ -344,13 +430,12 @@ const ACT = {
     await db.update('questions/' + qid, { graded: true, open: false });
     await setState({ result: qid });
   },
-  showres: el => setState({ result: el.dataset.k }),
 
   async itsave() {
     const out = {};
     for (const k of Object.keys(ITEMS)) {
       const h = ukey(val(`it_${k}_h`)), t = ukey(val(`it_${k}_t`));
-      if ((h && !users()[h]) || (t && !users()[t])) return alert(`${ITEMS[k].ja}：IDが不正です`);
+      if ((h && !users()[h]) || (t && !users()[t])) return alert(`${ITEMS[k].ja}：そのIDの人はいません`);
       if (h && t && h === t) return alert(`${ITEMS[k].ja}：自分自身は指名できません`);
       if (h || t) out[k] = { holder: h || null, target: t || null };
     }
@@ -359,35 +444,46 @@ const ACT = {
   },
   itclear: () => confirm('アイテムの設定を消しますか？') && db.set('r4items', null),
 
-  mteam: async () => { const k = ukey(val('mt_u')), t = tkey(val('mt_t')); if (!k || !users()[k] || !t) return alert('IDかチーム番号が不正'); await teamAdd(t, k); },
-  mleader: async () => { const k = ukey(val('mt_u')), t = users()[k]?.team; if (!t) return alert('チーム未所属'); await db.set(`teams/${t}/leader`, k); },
+  mteam: async () => { const k = ukey(val('mt_u')), t = tkey(val('mt_t')); if (!k || !users()[k] || !t) return alert('IDかチーム番号が正しくありません'); await teamAdd(t, k); },
+  mleader: async () => { const k = ukey(val('mt_u')), t = users()[k]?.team; if (!t) return alert('その人はチームに入っていません'); await db.set(`teams/${t}/leader`, k); },
   unteam: async () => { const k = ukey(val('mt_u')); if (k) await teamRemove(k); },
   async mpair() {
     const a0 = ukey(val('mp_a')), b0 = ukey(val('mp_b'));
-    if (!a0 || !b0 || a0 === b0 || !users()[a0] || !users()[b0]) return alert('IDが不正');
+    if (!a0 || !b0 || a0 === b0 || !users()[a0] || !users()[b0]) return alert('IDが正しくありません');
     for (const k of [a0, b0]) if (users()[k].pair) await unpair(users()[k].pair);
     const [a, bb] = [a0, b0].sort(), pid = `${a}-${bb}`;
     await db.update('', { [`pairs/${pid}`]: { a, b: bb }, [`users/${a}/pair`]: pid, [`users/${bb}/pair`]: pid, [`users/${a}/pairReq`]: null, [`users/${bb}/pairReq`]: null });
   },
   unpair: el => confirm('このペアを解除しますか？') && unpair(el.dataset.p),
+  async deluser(el) {
+    const k = el.dataset.u; if (!confirm(`${name(k)}（ID ${sid(k)}）を削除しますか？`)) return;
+    await teamRemove(k); if (users()[k]?.pair) await unpair(users()[k].pair);
+    await db.update('', { [`users/${k}`]: null, [`points/${k}`]: null, [`ctime/${k}`]: null, [`presence/${k}`]: null });
+  },
 
   async toolupload() {
     const files = [...(document.getElementById('toolfiles')?.files || [])].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-    if (!files.length) return;
+    if (!files.length) return alert('画像を選んでください');
     const out = [...(S.toolAssets || [])];
-    for (const f of files) { const c = await compressImage(f, 360, 0.8); out.push({ data: c.data, name: c.name }); }
+    for (const f of files) { const c = await compressImage(f, 360, 0.82); out.push({ data: c.data, name: c.name, label: c.name.replace(/\.[^.]+$/, '') }); }
     await db.set('assets/tools', out);
   },
   toolclear: () => confirm('道具の画像をすべて削除しますか？') && db.set('assets/tools', null),
-  toolpts: () => db.set('secret/toolPts', (S.toolAssets || []).map((_, i) => +val('tp' + i) || 0)),
+  async toolsave() {
+    const assets = S.toolAssets || [], up = {};
+    assets.forEach((_, i) => { up[`${i}/label`] = val('tl' + i); });
+    await db.update('assets/tools', up);
+    await db.set('secret/toolPts', assets.map((_, i) => +val('tp' + i) || 0));
+    alert('保存しました');
+  },
   async toolstart(el) {
-    const s = el.dataset.s, min = +val('toolmin') || 1;
+    const s = el.dataset.s, min = +val(s === 'solo' ? 'toolmin1' : 'toolmin2') || 1;
     if (s === 'solo' && S.tools && Object.keys(S.tools).length && confirm('前回の選択データ（個人・チーム）を消してから始めますか？\nOK＝消す／キャンセル＝残す')) await db.set('tools', null);
     await setState({ phase: 'tools', toolStep: s, toolOpen: true, toolEndAt: db.now() + min * 60000, result: null });
   },
   toolstop: () => setState({ toolOpen: false }),
   async spotupload() {
-    const f = document.getElementById('spotfile')?.files?.[0]; if (!f) return;
+    const f = document.getElementById('spotfile')?.files?.[0]; if (!f) return alert('画像を選んでください');
     const c = await compressImage(f, 1600, 0.85);
     await db.set('assets/spot', { data: c.data, aspect: c.aspect });
   },
@@ -412,11 +508,10 @@ const ACT = {
     for (const [pid, p] of Object.entries(pairs)) {
       let first = p.first;
       if (!first) { first = Math.random() < 0.5 ? 'a' : 'b'; up[`pairs/${pid}/first`] = first; }
-      const setter = n % 2 === 1 ? first : other(first);   // 2回目は入れ替え
-      games[pid] = { ...giftNew(p.a, p.b, setter), deadline: db.now() + S.cfg.giftTurnSec * 1000 };
+      games[pid] = { ...giftNew(p.a, p.b, n % 2 === 1 ? first : other(first)), deadline: db.now() + S.cfg.giftTurnSec * 1000 };
       up[`points/${p.a}/r3g${n}`] = null; up[`points/${p.b}/r3g${n}`] = null;
     }
-    if (Object.keys(up).length) await db.update('', up);
+    await db.update('', up);
     await db.set('gift/g' + n, games);
     await setState({ phase: 'gift', giftGame: n, result: null });
     L.giftN = n;
@@ -426,19 +521,21 @@ const ACT = {
 
   async manualpt() {
     const k = ukey(val('mp_id')), n = Math.round(+val('mp_pt'));
-    if (!k || !users()[k] || !n) return alert('IDか点数が不正');
+    if (!k || !users()[k] || !n) return alert('IDか点数が正しくありません');
     await db.set(`points/${k}/m${Date.now()}`, n);
+    const i = document.getElementById('mp_pt'); if (i) i.value = '';
   },
   async cfgsave() {
     const out = {};
     for (const k of Object.keys(CFG_DEFAULT)) {
+      if (typeof CFG_DEFAULT[k] === 'boolean') { out[k] = !!document.getElementById('cfg_' + k)?.checked; continue; }
       const v = val('cfg_' + k);
-      out[k] = Array.isArray(CFG_DEFAULT[k]) ? v.split(/[,\s]+/).filter(Boolean).map(Number) : Number(v);
-      if (Array.isArray(out[k]) ? out[k].some(isNaN) : isNaN(out[k])) return alert('数字ではない値があります：' + (CFG_LABEL[k] || k));
+      out[k] = Array.isArray(CFG_DEFAULT[k]) ? v.split(/[,\s、]+/).filter(Boolean).map(Number) : Number(v);
+      if (Array.isArray(out[k]) ? out[k].some(isNaN) : isNaN(out[k])) return alert('数字ではない値があります：' + (CFG_LABEL[k]?.[1] || k));
     }
-    await db.set('config', out);
+    await db.set('config', out); alert('保存しました');
   },
-  cfgdefault: () => confirm('配点を初期値に戻しますか？') && db.set('config', CFG_DEFAULT),
+  cfgdefault: () => confirm('配点・設定を初期値に戻しますか？') && db.set('config', CFG_DEFAULT),
   async backup() {
     const all = await db.get('');
     const a = document.createElement('a');
@@ -446,12 +543,12 @@ const ACT = {
     a.download = `xmas-backup-${Date.now()}.json`; a.click();
   },
   async wipe() {
-    if (!confirm('本当に全データ（登録・得点・画像・問題・設定）を削除しますか？')) return;
-    if (prompt('確認のため DELETE と入力') !== 'DELETE') return;
+    if (!confirm('本当にすべてのデータ（参加者・得点・画像・問題・設定）を消しますか？')) return;
+    if (prompt('確認のため DELETE と入力してください') !== 'DELETE') return;
     await db.set('', null);
   },
   async wipeplay() {
-    if (!confirm('得点・回答・結果・チーム・ペア・ゲームを削除します（登録・画像・問題リスト・設定は残ります）')) return;
+    if (!confirm('得点・回答・結果・チーム・ペア・ゲームを消します（参加者・画像・問題リスト・設定は残ります）')) return;
     const up = { points: null, ctime: null, answers: null, results: null, questions: null, tools: null, spot: null, gift: null, teams: null, pairs: null, r4items: null, state: { phase: 'lobby' } };
     for (const k of uids()) { up[`users/${k}/team`] = null; up[`users/${k}/pair`] = null; up[`users/${k}/pairReq`] = null; }
     await db.update('', up);
@@ -472,7 +569,7 @@ app.addEventListener('click', e => {
 });
 app.addEventListener('change', e => { if (e.target.id === 'spotteam') { L.spotTeam = e.target.value; render(); } });
 
-function tick() { for (const el of document.querySelectorAll('[data-deadline]')) el.textContent = '⏱ ' + fmtSec(+el.dataset.deadline - db.now()); }
+function tick() { for (const el of document.querySelectorAll('[data-deadline]')) el.textContent = fmtSec(+el.dataset.deadline - db.now()); }
 
 // 自動処理：問題の自動締切、R2の終了、R3の時間切れ・加点の保険
 let busy = false;

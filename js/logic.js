@@ -12,6 +12,8 @@ export const CFG_DEFAULT = {
   spotRadius: 0.04,     // R2: 間違い探しの正解判定の半径（画像の幅に対する割合）
   giftMul: 1,           // R3: ゲーム内得点にかける倍率
   giftTurnSec: 60,      // R3: 1手の制限時間（秒）。時間切れはランダム
+  showRank: true,       // 参加者の結果画面に「現在◯位」を出す
+  testMode: false,      // テストモード：参加者画面に「ログイン画面に戻る」ボタンを出す
 };
 
 export const ITEMS = {
@@ -46,7 +48,7 @@ export function gradeNormal(q, userIds, answers, correct, cfg) {
     const ms = a.t - q.startAt;
     const ok = a.c === correct && (!q.limit || ms <= q.limit * 1000 + 1500);
     const pts = ok && q.round !== 0 ? r1Score(ms, q.limit || cfg.limitSec, cfg) : 0;
-    deltas[id] = pts; results[id] = { res: ok ? 'ok' : 'ng', pts };
+    deltas[id] = pts; results[id] = { res: ok ? 'ok' : 'ng', pts, ms };
     if (ok && q.round !== 0) ctimes[id] = ms;
   }
   return { deltas, ctimes, results };
