@@ -78,8 +78,8 @@ function topbar() {
 
 function viewEntry() {
   return `<div class="logo"><div class="l1">iMEDIA LAB PRESENTS</div>
-      <div class="l2">ZHOU LAB<br><em>XMAS</em><br>PARTY</div><div class="l3">2026</div>
-      ${giftHTML(1, '', '')}<div class="jp">研究室クリスマスパーティー</div></div>
+      <div class="l0">ZHOU LAB</div><div class="l2">XMAS<br>PARTY</div><div class="l3">2026</div>
+      ${giftHTML(6, '', '')}<div class="jp">研究室クリスマスパーティー</div></div>
     <div class="card" style="margin-top:18px"><div class="lbl">NICKNAME</div>
       <input class="input" id="nick" maxlength="12" placeholder="Your name" autocomplete="off" style="margin-top:6px"></div>
     ${L.err ? `<div class="err">${esc(L.err)}</div>` : ''}
@@ -98,7 +98,7 @@ function viewHome() {
     <div class="card row" style="margin-top:14px;justify-content:space-between"><div class="lbl">SCORE</div><div class="bigstat" style="font-size:34px;font-weight:900">${fmtN(total())}</div></div>
     ${waiting(S.state.phase === 'end' ? 'THANK YOU!' : 'WAITING FOR NEXT STAGE', S.state.phase === 'end' ? 'ありがとうございました' : '次のステージまでお待ちください')}`;
 }
-const waiting = (t, jp) => `<div class="wait"><div class="dots"><i></i><i></i><i></i></div><div class="t">${t}</div><div class="jp">${jp}</div></div>`;
+const waiting = (t, jp) => `<div class="wait"><div class="dots"><i></i><i></i><i></i></div><div class="t" data-t="${t}">${t}</div><div class="jp">${jp}</div></div>`;
 
 // ---- 問題（練習・R1・R4） ----
 function viewQuestion() {
@@ -109,8 +109,8 @@ function viewQuestion() {
   const timeUp = q.limit && db.now() > q.startAt + q.limit * 1000;
   const tag = q.round === 0 ? 'PRACTICE' : q.round === 4 ? 'FINAL ROUND' : 'ROUND 1';
   const title = q.round === 4 ? 'ALL OR NOTHING' : `QUESTION ${q.no ?? ''}`;
-  const sub = q.round === 4 ? '○か×か、持ち点を賭けよう' : q.round === 0 ? '練習問題（得点なし）' : 'わかったら答えよう・早いほど高得点';
-  let h = `<div class="head"><span class="tag" ${q.round === 4 ? 'style="background:var(--gold)"' : ''}>${tag}</span><div class="t">${title}</div><div class="jp">${sub}</div></div>`;
+  const sub = q.round === 4 ? '○か×か、<mark>持ち点を賭けよう</mark>' : q.round === 0 ? '練習問題（得点なし）' : 'わかったら答えよう・<mark>早いほど高得点</mark>';
+  let h = `<div class="head"><span class="tag ${q.round === 4 ? 'append' : ''}">${tag}</span><div class="t" data-t="${title}">${title}</div><div class="jp">${sub}</div></div>`;
   if (a) {
     return h + `<div class="locked"><div class="ch c${a.c}">${lab(a.c)}</div>
       <div class="stamp">🔒 ANSWER LOCKED</div>${q.round === 4 ? `<div class="bet"><div class="lbl">YOUR BET</div><div class="v">${fmtN(a.bet)}</div></div>` : ''}
@@ -149,7 +149,7 @@ function viewResult() {
 // ---- チーム作り ----
 function viewTeam() {
   const u = U(), t = u.team && S.teams[u.team];
-  const head = `<div class="head"><span class="tag" style="background:var(--green)">TEAM</span><div class="t">MAKE A TEAM</div><div class="jp">チームを作る or チーム番号で参加</div></div>`;
+  const head = `<div class="head"><span class="tag" style="background:var(--easy)">TEAM</span><div class="t" data-t="MAKE A TEAM">MAKE A TEAM</div><div class="jp">チームを作る or チーム番号で参加</div></div>`;
   if (!t) return head + `<div class="card center"><button class="btn" data-act="mkteam" style="margin-top:4px"><span class="ico">👑</span>CREATE<small>チームを作る（リーダー）</small></button>
       <div class="lbl" style="margin:22px 0 6px">OR JOIN · TEAM No.</div>
       <input class="input" id="jteam" inputmode="numeric" placeholder="No.">
@@ -165,7 +165,7 @@ function viewTeam() {
 // ---- ペア作り ----
 function viewPair() {
   const u = U();
-  const head = `<div class="head"><span class="tag" style="background:var(--pink)">PAIR</span><div class="t">FIND A PARTNER</div><div class="jp">お互いに相手のIDを入力すると成立</div></div>`;
+  const head = `<div class="head"><span class="tag" style="background:var(--master)">PAIR</span><div class="t" data-t="FIND A PARTNER">FIND A PARTNER</div><div class="jp">お互いに相手のIDを入力すると成立</div></div>`;
   if (u.pair) {
     const p = partnerOf(u.pair);
     return head + `<div class="card idcard"><div class="lbl" style="margin-top:6px">YOUR PARTNER</div><div class="big" style="font-size:120px">${esc(sid(p))}</div><div class="who">${esc(name(p))}</div></div>${waiting('PAIRED!', 'ペア成立')}`;
@@ -182,7 +182,7 @@ function viewTools() {
   const team = u.team && S.teams[u.team], leader = team?.leader === me;
   const open = st.toolOpen && db.now() < (st.toolEndAt || 0);
   const solo = st.toolStep !== 'team';
-  const head = `<div class="head"><span class="tag" style="background:var(--green)">ROUND 2 · ${solo ? 'SOLO' : 'TEAM'}</span><div class="t">SURVIVAL KIT</div>
+  const head = `<div class="head"><span class="tag" style="background:var(--easy)">ROUND 2 · ${solo ? 'SOLO' : 'TEAM'}</span><div class="t" data-t="SURVIVAL KIT">SURVIVAL KIT</div>
     <div class="jp">${solo ? `持っていく道具を${N}個えらぼう（自分で）` : leader ? `チームの${N}個を決めて提出しよう` : 'リーダーがチームの答えを提出します'}</div></div>`;
   if (!assets.length) return head + waiting('LOADING…', '');
   let mode, picks;
@@ -209,7 +209,7 @@ function viewSpot() {
   const st = S.state, u = U(), a = S.spotAsset;
   const leader = u.team && S.teams[u.team]?.leader === me;
   const open = st.spotOpen && db.now() < (st.spotEndAt || 0);
-  const head = `<div class="head" style="margin-bottom:8px"><span class="tag" style="background:var(--sky)">ROUND 2 · TEAM</span><div class="t">FIND IT!</div>
+  const head = `<div class="head" style="margin-bottom:8px"><span class="tag" style="background:var(--hard)">ROUND 2 · TEAM</span><div class="t" data-t="FIND IT!">FIND IT!</div>
     <div class="jp">${leader ? '👑 タップで〇をつける（もう一度タップで消す）' : '見つけたらリーダーに伝えよう'}</div></div>`;
   if (!a) return head + waiting('LOADING…', '');
   return head + `<div class="spotbar">${[1, 2, 3].map(z => `<button class="zoom ${L.zoom === z ? 'on' : ''}" data-act="zoom" data-z="${z}">×${z}</button>`).join('')}
@@ -241,8 +241,8 @@ async function spotTap(el, e) {
 // ---- R3 プレゼント選び ----
 function viewGift() {
   const g = S.gift, u = U(), n = S.state.giftGame;
-  const head = `<div class="head" style="margin-bottom:10px"><span class="tag" style="background:var(--red)">ROUND 3 · GAME ${n || ''}</span><div class="t">PRESENT CHOICE</div>
-    <div class="jp">💣 入りのプレゼントを避けて、数字の分だけポイントをゲット</div></div>`;
+  const head = `<div class="head" style="margin-bottom:10px"><span class="tag" style="background:var(--expert)">ROUND 3 · GAME ${n || ''}</span><div class="t" data-t="PRESENT CHOICE">PRESENT CHOICE</div>
+    <div class="jp">💣入りを避けて、<mark>数字の分だけポイント</mark></div></div>`;
   if (!u.pair) return head + waiting('NO PARTNER', 'ペアがいません。幹事に伝えてください');
   if (!g) return head + waiting('READY…', '');
   const side = g.a === me ? 'a' : 'b';
