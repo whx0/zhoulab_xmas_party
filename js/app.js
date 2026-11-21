@@ -2,6 +2,7 @@
 import { db, TS, MOCK } from './db.js';
 import { CFG_DEFAULT, toArr, sum, other, remaining, ranking, giftSet, giftPick, giftAuto } from './logic.js';
 import { esc, patch, fmtSec, fmtN, sid, ukey, tkey, ICON, wreathHTML, ornamentHTML, BG_HTML } from './ui.js';
+import { LANGS, t as tr, rules as rl } from './i18n.js';
 
 const stage = document.querySelector('.stage');
 stage.insertAdjacentHTML('afterbegin', BG_HTML);
@@ -9,7 +10,9 @@ const app = document.getElementById('app');
 const store = MOCK ? sessionStorage : localStorage;   // お試しモードではタブごとに別の参加者
 let me = store.getItem('xmas_me');
 const S = { state: {}, users: {}, cfg: CFG_DEFAULT, teams: {} };
-const L = { sel: null, qid: null, bet: 0, tools: [], toolsKey: '', zoom: 1, gsel: null, gkey: '', err: '', paid: {} };
+let lang = localStorage.getItem('xmas_lang') || 'ja';
+const t = (k, v) => tr(lang, k, v);
+const L = { rules: {}, sel: null, qid: null, bet: 0, tools: [], toolsKey: '', zoom: 1, gsel: null, gkey: '', err: '', paid: {} };
 const subs = {};
 
 function want(key, path) {
@@ -22,6 +25,7 @@ db.on('state', v => { S.state = v || {}; render(); });
 db.on('users', v => { S.users = v || {}; render(); });
 db.on('teams', v => { S.teams = v || {}; render(); });
 db.on('config', v => { S.cfg = { ...CFG_DEFAULT, ...(v || {}) }; render(); });
+db.on('timer', v => { S.timer = v; render(); });
 if (me) db.presence('presence/' + me);
 
 const U = () => S.users[me];
@@ -54,12 +58,25 @@ function top() {
   let nm = `<span>${esc(u.name)}</span>`;
   if (ph === 'gift' && u.pair) nm = `<span>${esc(u.name)}<span class="vs">vs</span>${esc(name(partnerOf(u.pair)))}</span>`;
   else if (u.team && ['tools', 'spot', 'team'].includes(ph)) nm += `<span class="tag">TEAM ${esc(sid(u.team))}</span>`;
-  return `<div class="top"><div class="idc"><small>ID</small>${esc(sid(me))}</div><div class="nm">${nm}</div>
-    <div class="sc"><small>SCORE</small><b>${fmtN(total())}</b></div></div><div class="divider"></div>`;
+  return `<div class="top"><div class="idc" title="${t('yourId')}"><small>ID</small>${esc(sid(me))}</div><div class="nm">${nm}</div>
+    <div class="sc"><small>SCORE</small><b>${fmtN(total())}</b></div></div><div class="divider"></div>${langBar()}${phoneTimer()}`;
 }
+const langBar = () => `<div class="langs">${LANGS.map(([k, l]) => `<button class="${lang === k ? 'on' : ''}" data-act="lang" data-l="${k}">${l}</button>`).join('')}</div>`;
+function timerRemain(tm) { return !tm ? 0 : tm.running ? Math.max(0, tm.endAt - db.now()) : (tm.remain || 0); }
+function phoneTimer() {
+  const tm = S.timer; if (!tm || !tm.phones || !tm.dur) return '';
+  return `<div class="ptimer ${tm.running ? '' : 'paused'}"><span>${ICON.clock}${esc(tm.label || t('timerLabel'))}</span><b data-tm="1"></b></div>`;
+}
+// 分単位の締め切り表示（残り mm:ss ＋ バー）
+const cdBar = (s, e) => `<div class="cd"><div class="cdt"><span>${ICON.clock}${t('remain')}</span><b data-mmss="${e}"></b></div><div class="cdbar"><i data-s="${s}" data-e="${e}"></i></div></div>`;
+const rulesCard = (key, v) => {
+  const open = L.rules[key] !== false;
+  return `<div class="rules ${open ? 'open' : ''}"><button class="rh" data-act="rules" data-k="${key}">${ICON.star}<span>${t('rules')}</span><i>${open ? '−' : '+'}</i></button>
+    ${open ? `<ol>${rl(lang, key, v).map(x => `<li>${esc(x)}</li>`).join('')}</ol>` : ''}</div>`;
+};
 const hd = (eyebrow, title, sub = '') => `<div class="hd"><div class="eyebrow">${eyebrow}</div><div class="title">${title}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div>`;
 const waiting = (en, jp = '') => `<div class="waiting"><div class="dm"><i></i><i></i><i></i></div><div class="en">${en}</div>${jp ? `<div class="jp">${jp}</div>` : ''}</div>`;
-const testLink = () => testOn() ? `<button class="link" data-act="logout">${ICON.logout}ログイン画面に戻る（テスト用）</button>` : '';
+const testLink = () => testOn() ? `<button class="link" data-act="logout">${ICON.logout}${t('logout')}</button>` : '';
 const bottom = inner => `<div class="bottom">${inner}${testLink()}</div>`;
 const OX_SVG = { O: '<svg class="mk" viewBox="0 0 100 100"><circle cx="50" cy="50" r="34" fill="none" stroke="currentColor" stroke-width="5"/></svg>',
   X: '<svg class="mk" viewBox="0 0 100 100"><path d="M20 20L80 80M80 20L20 80" stroke="currentColor" stroke-width="5" stroke-linecap="round"/></svg>' };
@@ -88,38 +105,38 @@ function render() {
 }
 
 function viewEntry() {
-  return `<div class="entry-head"><div class="eyebrow">iMedia Lab presents</div><div class="title">Merry Christmas</div><div class="eyebrow t2">Zhou Lab · Xmas Party</div></div>
-    <div style="margin-top:26px">${wreathHTML('<div class="lbl">HOLY NIGHT</div><div class="big">2026</div>', { size: 210 })}</div>
-    <div class="entry-jp">研究室クリスマスパーティー</div>
-    <div class="card lined"><div class="lbl">Nickname</div><div class="field">${ICON.pen}<input id="nick" maxlength="12" placeholder="Your name" autocomplete="off"></div></div>
+  return `<div class="langs entry">${LANGS.map(([k, l]) => `<button class="${lang === k ? 'on' : ''}" data-act="lang" data-l="${k}">${l}</button>`).join('')}</div>
+    <div class="entry-head"><div class="eyebrow">iMedia Lab presents</div><div class="title">Merry Christmas</div><div class="eyebrow t2">Zhou Lab · Xmas Party</div></div>
+    <div style="margin-top:22px">${wreathHTML('<div class="lbl">HOLY NIGHT</div><div class="big">2026</div>', { size: 200 })}</div>
+    <div class="entry-jp">${t('entryJp')}</div>
+    <div class="card lined"><div class="lbl">Nickname</div><div class="field">${ICON.pen}<input id="nick" maxlength="12" placeholder="${t('nickPh')}" autocomplete="off"></div></div>
     ${L.err ? `<div class="err">${esc(L.err)}</div>` : ''}
-    <div class="bottom"><button class="btn" data-act="reg">Entry<small>参加する</small></button>
-      <details><summary class="link">ID で復帰 / Re-login with ID</summary>
+    <div class="bottom"><button class="btn" data-act="reg">Entry<small>${t('entrySub')}</small></button>
+      <details><summary class="link">${t('relogin')}</summary>
         <div class="relogin"><input id="reid" inputmode="numeric" placeholder="ID"><button data-act="relogin">OK</button></div></details>
-      ${MOCK ? '<div class="link" style="cursor:default">ローカルお試しモード（タブごとに別の参加者）</div>' : ''}</div>`;
+      ${MOCK ? `<div class="link" style="cursor:default">${t('mock')}</div>` : ''}</div>`;
 }
 
 function viewHome() {
   const u = U(), end = S.state.phase === 'end';
   const chips = [u.team ? `<span class="chip">${ICON.users}TEAM ${esc(sid(u.team))}</span>` : '', u.pair ? `<span class="chip">${ICON.link}PAIR ${esc(sid(partnerOf(u.pair)))}</span>` : ''].join('');
-  return hd(end ? 'Thank you' : 'Welcome', end ? 'See you <em>next year</em>' : `Hello, <em>${esc(u.name)}</em>`, end ? 'ありがとうございました' : 'あなたのIDはこちら')
-    + wreathHTML(`<div class="lbl">YOUR ID</div><div class="big xl">${esc(sid(me))}</div>`, { size: 210 })
+  return hd(end ? 'Thank you' : t('welcome'), end ? 'See you <em>next year</em>' : `Hello, <em>${esc(u.name)}</em>`, end ? t('thanks') : t('idHint'))
+    + wreathHTML(`<div class="lbl">YOUR ID</div><div class="big xl">${esc(sid(me))}</div>`, { size: 200 })
     + (chips ? `<div class="chips">${chips}</div>` : '')
-    + bottom(waiting(end ? 'MERRY CHRISTMAS' : 'WAITING FOR NEXT', end ? '' : '次のステージまでお待ちください'));
+    + (end ? '' : `<div style="margin-top:16px">${rulesCard('lobby')}</div>`)
+    + bottom(waiting(end ? 'MERRY CHRISTMAS' : 'WAITING FOR NEXT', end ? '' : t('waitNext')));
 }
 
-// ---- 問題 ----
-const hasText = q => q.type !== 'ox' && q.choices && Object.values(q.choices).some(v => v);
+// ---- 問題（選択肢は A〜D / ○× だけを表示） ----
 function choiceEl(q, c, on, small = false) {
-  const lab = c === 'O' ? '○' : c === 'X' ? '×' : c;
   if (q.type === 'ox') return `<div class="ox ${on ? 'on' : ''}" ${small ? '' : `data-act="choose" data-c="${c}"`}>${on && !small ? `<span class="ck">${ICON.check}</span>` : ''}${OX_SVG[c]}<span class="cap">${c === 'O' ? 'TRUE' : 'FALSE'}</span></div>`;
-  if (hasText(q)) return `<button class="opt ${on ? 'on' : ''}" ${small ? 'disabled' : `data-act="choose" data-c="${c}"`}><span class="lt">${lab}</span><span class="tx">${esc(q.choices?.[c] || '')}</span><span class="ck">${ICON.check}</span></button>`;
-  return `<div class="sq ${on ? 'on' : ''}" ${small ? '' : `data-act="choose" data-c="${c}"`}>${lab}${on && !small ? `<span class="ck">${ICON.check}</span>` : ''}</div>`;
+  return `<div class="sq ${on ? 'on' : ''}" ${small ? '' : `data-act="choose" data-c="${c}"`}>${c}${on && !small ? `<span class="ck">${ICON.check}</span>` : ''}</div>`;
 }
+const qRule = q => q.round === 4 ? 'final' : q.round === 0 ? 'practice' : 'solo';
 function qHead(q) {
-  if (q.round === 4) return hd('Final Round', 'All <em>or</em> Nothing', '○か×か、持ち点を賭けよう');
-  if (q.round === 0) return hd('Practice', `Question <em>No.${q.no ?? ''}</em>`, '練習問題（得点なし）');
-  return hd('Round 1', `Question <em>No.${q.no ?? ''}</em>`, 'わかったら答えよう・早いほど高得点');
+  if (q.round === 4) return hd(t('stageFinal'), 'All <em>or</em> Nothing', t('subFinal'));
+  if (q.round === 0) return hd(t('stagePractice'), `Question <em>No.${q.no ?? ''}</em>`, t('subPractice'));
+  return hd(t('stageSolo'), `Question <em>No.${q.no ?? ''}</em>`, t('subSolo'));
 }
 function viewQuestion() {
   const q = S.question, a = S.myAnswer, st = S.state;
@@ -127,24 +144,24 @@ function viewQuestion() {
   const choices = q.type === 'ox' ? ['O', 'X'] : ['A', 'B', 'C', 'D'];
   const end = q.startAt + (q.limit || 0) * 1000;
   const timeUp = q.limit && db.now() > end;
+  const rc = rulesCard(qRule(q), { max: S.cfg.r1Max, min: S.cfg.r1Min });
   let h = qHead(q);
   if (a) {
-    return h + `<div class="locked"><div class="pick" ${hasText(q) ? 'style="width:100%"' : ''}>${choiceEl(q, a.c, true, true)}</div>
+    return h + `<div class="locked"><div class="pick">${choiceEl(q, a.c, true, true)}</div>
       <div class="stamp">${ICON.check}ANSWER LOCKED</div>
-      ${q.round === 4 ? `<div class="note">YOUR BET　<b style="font-family:var(--serif);font-size:20px;color:#fff">${fmtN(a.bet)}</b></div>` : ''}
-      <div class="note">回答しました。結果発表をお待ちください</div></div>` + bottom(waiting('WAITING FOR RESULT'));
+      ${q.round === 4 ? `<div class="note">${t('yourBet')}　<b style="font-family:var(--serif);font-size:20px;color:#fff">${fmtN(a.bet)}</b></div>` : ''}
+      <div class="note">${t('locked')}</div></div>` + bottom(waiting('WAITING FOR RESULT'));
   }
-  if (!q.open || timeUp) return h + `<div class="locked"><div class="stamp">${ICON.clock}TIME UP</div><div class="note">時間切れです</div></div>` + bottom(waiting('WAITING FOR RESULT'));
+  if (!q.open || timeUp) return h + `<div class="locked"><div class="stamp">${ICON.clock}TIME UP</div><div class="note">${t('timeUp')}</div></div>` + bottom(waiting('WAITING FOR RESULT', t('waitResult')));
   if (q.limit) h += ring(q.startAt, end);
-  const wrap = q.type === 'ox' ? 'oxs' : hasText(q) ? 'opts' : 'sqs';
-  h += `<div class="${wrap}">${choices.map(c => choiceEl(q, c, L.sel === c)).join('')}</div>`;
+  h += `<div class="${q.type === 'ox' ? 'oxs' : 'sqs'}">${choices.map(c => choiceEl(q, c, L.sel === c)).join('')}</div>`;
   if (q.round === 4) {
     const max = Math.max(total(), 0); L.bet = Math.min(L.bet, max);
-    h += `<div class="card bet"><div class="row1"><span class="lbl">Your bet</span><span class="v"><span id="betv">${fmtN(L.bet)}</span> <small>/ ${fmtN(max)}</small></span></div>
+    h += `<div class="card bet"><div class="row1"><span class="lbl">${t('yourBet')}</span><span class="v"><span id="betv">${fmtN(L.bet)}</span> <small>/ ${fmtN(max)}</small></span></div>
       <input type="range" class="slider" id="bet" min="0" max="${max}" step="${max >= 2000 ? 50 : 10}" value="${L.bet}" style="--p:${max ? L.bet / max * 100 : 0}%">
       <div class="quick"><button data-act="betset" data-f="0">0</button><button data-act="betset" data-f="0.5">HALF</button><button class="all" data-act="betset" data-f="1">ALL IN</button></div></div>`;
   }
-  return h + bottom(`<button class="btn" data-act="submit" ${L.sel ? '' : 'disabled'}>Decide<small>決定（変更できません）</small></button>`);
+  return h + `<div style="margin-top:16px">${rc}</div>` + bottom(`<button class="btn" data-act="submit" ${L.sel ? '' : 'disabled'}>Decide<small>${t('decideSub')}</small></button>`);
 }
 
 // ---- 結果 ----
@@ -157,46 +174,48 @@ function viewResult() {
   const r = S.myResult, ph = S.state.phase;
   const rank = S.cfg.showRank && S.allPoints ? myRank() : null;
   if (ph === 'tools' || ph === 'spot') {
-    return hd(ph === 'tools' ? 'Round 2 · Survival Kit' : 'Round 2 · Find the Difference', 'Team <em>Result</em>')
+    return hd(ph === 'tools' ? t('stageNasa') : t('stageSpot'), 'Team <em>Result</em>')
       + wreathHTML(`<div class="lbl">YOUR TEAM IS</div><em>Rank</em><div class="big xl" style="font-size:72px">${r.rank ?? '-'}</div><div class="lbl">${r.rank ? ordinal(r.rank) + ' PLACE' : ''}</div>`, { size: 250 })
-      + `<div class="card" style="text-align:center;width:170px;margin:18px auto 0;padding:10px"><div style="font-family:var(--serif);font-size:34px;color:var(--navy)">+${fmtN(r.pts)}</div><div class="lbl" style="font-size:8px">TEAM POINTS</div></div>`
-      + bottom(waiting('WAITING FOR NEXT', '次をお待ちください'));
+      + `<div class="card" style="text-align:center;width:170px;margin:18px auto 0;padding:10px"><div style="font-family:var(--serif);font-size:34px;color:var(--navy)">+${fmtN(r.pts)}</div><div class="lbl" style="font-size:8px">${t('teamPoints')}</div></div>`
+      + bottom(waiting('WAITING FOR NEXT', t('waitNext2')));
   }
   const q = S.question || {};
   const j = r.res === 'ok' ? 'Correct!' : r.res === 'ng' ? 'Wrong…' : 'Time up';
   const pts = r.pts ?? 0;
-  const p = q.round === 0 ? `<div class="p" style="font-size:22px">Practice<small>練習なので得点なし</small></div>`
+  const p = q.round === 0 ? `<div class="p" style="font-size:22px">Practice<small>${t('practiceNo')}</small></div>`
     : `<div class="p">${pts >= 0 ? '+' : '−'}${fmtN(Math.abs(pts))}<small>POINTS</small></div>`;
-  const chips = [r.ms != null && r.res !== 'none' ? `<span class="chip">${ICON.clock}回答 ${(r.ms / 1000).toFixed(1)} 秒</span>` : '',
-    rank && q.round !== 0 ? `<span class="chip">${ICON.medal}現在 ${rank} 位</span>` : ''].join('');
+  const chips = [r.ms != null && r.res !== 'none' ? `<span class="chip">${ICON.clock}${t('ansTime', { s: (r.ms / 1000).toFixed(1) })}</span>` : '',
+    rank && q.round !== 0 ? `<span class="chip">${ICON.medal}${t('rankNow', { n: rank })}</span>` : ''].join('');
   return `<div style="height:12px"></div>` + ornamentHTML(`<div class="j ${r.res === 'ok' ? '' : r.res}">${j}</div>${p}`)
-    + (chips ? `<div class="chips">${chips}</div>` : '') + bottom(waiting('WAITING FOR NEXT', '次をお待ちください'));
+    + (chips ? `<div class="chips">${chips}</div>` : '') + bottom(waiting('WAITING FOR NEXT', t('waitNext2')));
 }
 
 // ---- チーム ----
 function viewTeam() {
-  const u = U(), t = u.team && S.teams[u.team];
-  const h = hd('Team', 'Make a <em>Team</em>', 'チームを作る、または番号で参加');
-  if (!t) return h + `<div class="card lined"><button class="btn light" data-act="mkteam" style="margin-top:4px">Create<small>チームを作る（リーダーになる）</small></button>
-      <div class="or">or</div><div class="lbl">Join · Team No.</div>
-      <div class="inline"><div class="field">${ICON.users}<input id="jteam" inputmode="numeric" placeholder="No."></div><button class="btn" data-act="jointeam">Join</button></div></div>` + bottom('');
-  const mem = Object.keys(t.members || {}).sort();
+  const u = U(), t0 = u.team && S.teams[u.team];
+  const h = hd('Team', 'Make a <em>Team</em>', t('subTeam'));
+  const rc = `<div style="margin-top:14px">${rulesCard('team', { n: S.cfg.teamSize })}</div>`;
+  if (!t0) return h + `<div class="card lined"><button class="btn light" data-act="mkteam" style="margin-top:4px">Create<small>${t('createSub')}</small></button>
+      <div class="or">or</div><div class="lbl">Join · ${t('joinTeam')}</div>
+      <div class="inline"><div class="field">${ICON.users}<input id="jteam" inputmode="numeric" placeholder="No."></div><button class="btn" data-act="jointeam">Join</button></div></div>` + rc + bottom('');
+  const mem = Object.keys(t0.members || {}).sort();
   return h + `<div class="card lined teambox"><div class="lbl">Team No.</div><div class="tno">${esc(sid(u.team))}</div>
-    <div class="lbl" style="color:var(--ink2)">${mem.length} / ${S.cfg.teamSize} MEMBERS</div>
-    <ul class="mem">${mem.map(k => `<li>${t.leader === k ? ICON.crown : ''}<span class="pid">${esc(sid(k))}</span>${esc(name(k))}</li>`).join('')}</ul>
-    <button class="link" data-act="leaveteam" style="margin-top:6px">チームから抜ける / Leave</button></div>` + bottom('');
+    <div class="lbl" style="color:var(--ink2)">${mem.length} / ${S.cfg.teamSize} ${t('members')}</div>
+    <ul class="mem">${mem.map(k => `<li>${t0.leader === k ? ICON.crown : ''}<span class="pid">${esc(sid(k))}</span>${esc(name(k))}</li>`).join('')}</ul>
+    <button class="link" data-act="leaveteam" style="margin-top:6px">${t('leave')}</button></div>` + rc + bottom('');
 }
 
 // ---- ペア ----
 function viewPair() {
-  const u = U(), h = hd('Pair', 'Find a <em>Partner</em>', 'お互いに相手のIDを入力すると成立');
+  const u = U(), h = hd('Pair', 'Find a <em>Partner</em>', t('subPair'));
+  const rc = `<div style="margin-top:14px">${rulesCard('pair')}</div>`;
   if (u.pair) {
     const p = partnerOf(u.pair);
-    return h + wreathHTML(`<div class="lbl">YOUR PARTNER</div><div class="big xl" style="font-size:80px">${esc(sid(p))}</div><div style="letter-spacing:.1em">${esc(name(p))}</div>`, { size: 210 }) + bottom(waiting('PAIRED', 'ペア成立'));
+    return h + wreathHTML(`<div class="lbl">YOUR PARTNER</div><div class="big xl" style="font-size:80px">${esc(sid(p))}</div><div style="letter-spacing:.1em">${esc(name(p))}</div>`, { size: 200 }) + bottom(waiting('PAIRED', t('paired')));
   }
-  return h + `<div class="card lined"><div class="lbl">Partner's ID</div>
+  return h + `<div class="card lined"><div class="lbl">${t('partnerId')}</div>
     <div class="inline"><div class="field">${ICON.link}<input id="pid" inputmode="numeric" placeholder="ID"></div><button class="btn" data-act="pair">OK</button></div>
-    ${u.pairReq ? `<p class="hint" style="text-align:center;letter-spacing:.1em;color:var(--ink2)">ID ${esc(sid(u.pairReq))}（${esc(name(u.pairReq))}）の入力を待っています…</p>` : ''}</div>` + bottom('');
+    ${u.pairReq ? `<p class="hint" style="text-align:center;letter-spacing:.1em;color:var(--ink2);font-size:12px">${t('waitPartner', { id: esc(sid(u.pairReq)), name: esc(name(u.pairReq)) })}</p>` : ''}</div>` + rc + bottom('');
 }
 
 // ---- R2 道具選び ----
@@ -205,9 +224,9 @@ function viewTools() {
   const leader = u.team && S.teams[u.team]?.leader === me;
   const open = st.toolOpen && db.now() < (st.toolEndAt || 0);
   const solo = st.toolStep !== 'team';
-  let h = hd(`Round 2 · ${solo ? 'Solo' : 'Team'}`, 'Survival <em>Kit</em>',
-    solo ? `持っていく道具を ${N} 個えらぼう` : leader ? `チームの ${N} 個を決めて提出しよう` : 'リーダーがチームの答えを提出します');
+  let h = hd(t('stageNasa'), 'Survival <em>Kit</em>', solo ? t('subNasaSolo', { n: N }) : leader ? t('subNasaLeader', { n: N }) : t('subNasaMember'));
   if (!assets.length) return h + bottom(waiting('LOADING'));
+  if (open) h += cdBar(st.toolStartAt || st.toolEndAt - 60000, st.toolEndAt);
   let mode, picks;
   if (solo) { if (S.toolSolo) { mode = 'view'; picks = toArr(S.toolSolo); } else mode = open ? 'edit' : 'view'; }
   else if (S.toolTeam) { mode = 'view'; picks = toArr(S.toolTeam); }
@@ -217,11 +236,12 @@ function viewTools() {
   if (L.toolsKey !== key) { L.toolsKey = key; L.tools = solo ? [] : toArr(S.toolDraft); }
   const sel = mode === 'edit' ? L.tools : (picks || []);
   const done = solo ? !!S.toolSolo : !!S.toolTeam;
-  h += `<div class="meta"><span class="t">${ICON.clock}${open ? `<span data-deadline="${st.toolEndAt}"></span>&nbsp;SEC` : 'TIME UP'}</span><b>${sel.length}<small> / ${N}</small></b></div>`;
-  if (done) h += `<div class="done"><span class="stamp">${ICON.check}SUBMITTED</span></div>`;
+  h += `<div class="meta"><span class="t">${solo ? 'SOLO' : 'TEAM'}${!open ? ' · TIME UP' : ''}</span><b>${sel.length}<small> / ${N}</small></b></div>`;
+  if (done) h += `<div class="done"><span class="stamp">${ICON.check}${t('submitted')}</span></div>`;
   h += `<div class="tiles">${assets.map((a, i) => `<button class="tile ${sel.includes(i) ? 'on' : ''}" ${mode === 'edit' ? `data-act="tool" data-i="${i}"` : 'disabled'}>
       <span class="no">${String(i + 1).padStart(2, '0')}</span><img src="${a.data}" alt="">${a.label ? `<span class="nm">${esc(a.label)}</span>` : ''}</button>`).join('')}</div>`;
-  return h + bottom(mode === 'edit' ? `<button class="btn" data-act="toolsubmit" ${L.tools.length === N ? '' : 'disabled'}>Decide<small>${L.tools.length} / ${N}　決定（変更できません）</small></button>` : waiting(done ? 'SUBMITTED' : 'PLEASE WAIT'));
+  h += `<div style="margin-top:14px">${rulesCard('nasa', { n: N })}</div>`;
+  return h + bottom(mode === 'edit' ? `<button class="btn" data-act="toolsubmit" ${L.tools.length === N ? '' : 'disabled'}>Decide<small>${L.tools.length} / ${N}　${t('decideSub')}</small></button>` : waiting(done ? 'SUBMITTED' : 'PLEASE WAIT'));
 }
 
 // ---- R2 間違い探し ----
@@ -229,11 +249,12 @@ function viewSpot() {
   const st = S.state, u = U(), a = S.spotAsset;
   const leader = u.team && S.teams[u.team]?.leader === me;
   const open = st.spotOpen && db.now() < (st.spotEndAt || 0);
-  const h = hd('Round 2 · Team', 'Find the <em>Difference</em>', leader ? 'タップで〇をつける（もう一度で消す）' : '見つけたらリーダーに伝えよう');
+  const h = hd(t('stageSpot'), 'Find the <em>Difference</em>', leader ? t('subSpotLeader') : t('subSpotMember'));
   if (!a) return h + bottom(waiting('LOADING'));
-  return h + `<div class="zooms">${[1, 2, 3].map(z => `<button class="${L.zoom === z ? 'on' : ''}" data-act="zoom" data-z="${z}">×${z}</button>`).join('')}
-      <span class="cnt" id="spotcnt"></span><span class="meta" style="margin:0 0 0 12px"><span class="t">${ICON.clock}${open ? `<span data-deadline="${st.spotEndAt}"></span>` : 'TIME UP'}</span></span></div>
-    <div class="spotwrap"><div class="spotinner" id="spotinner" style="width:${L.zoom * 100}%"><img src="${a.data}" alt=""><div class="marks" id="marks"></div></div></div>` + bottom('');
+  return h + (open ? cdBar(st.spotStartAt || st.spotEndAt - 60000, st.spotEndAt) : `<div class="done"><span class="stamp">${ICON.clock}TIME UP</span></div>`)
+    + `<div class="zooms">${[1, 2, 3].map(z => `<button class="${L.zoom === z ? 'on' : ''}" data-act="zoom" data-z="${z}">×${z}</button>`).join('')}<span class="cnt" id="spotcnt"></span></div>
+    <div class="spotwrap"><div class="spotinner" id="spotinner" style="width:${L.zoom * 100}%"><img src="${a.data}" alt=""><div class="marks" id="marks"></div></div></div>
+    <div style="margin-top:14px">${rulesCard('spot', { cap: st.spotCap ?? '-' })}</div>` + bottom('');
 }
 function drawMarks() {
   const el = document.getElementById('marks'); if (!el) return;
@@ -251,7 +272,7 @@ async function spotTap(el, e) {
   const i = marks.findIndex(m => Math.hypot(m.x - x, (m.y - y) * aspect) <= rad);
   if (i >= 0) marks.splice(i, 1);
   else if (marks.length < (st.spotCap ?? 99)) marks.push({ x: +x.toFixed(4), y: +y.toFixed(4) });
-  else return flash('これ以上つけられません');
+  else return flash(t('maxMark'));
   S.spotMarks = marks; drawMarks();
   await db.set(`spot/${u.team}/marks`, marks.length ? marks : null);
 }
@@ -259,18 +280,18 @@ async function spotTap(el, e) {
 // ---- R3 プレゼントツリー ----
 function viewGift() {
   const g = S.gift, u = U(), n = S.state.giftGame;
-  let h = hd(`Round 3 · Game ${n || ''}`, 'Present <em>Tree</em>', 'ハズレ（💣）を避けて、数字の分だけポイント');
-  if (!u.pair) return h + bottom(waiting('NO PARTNER', 'ペアがいません。幹事に伝えてください'));
+  let h = hd(`${t('stageGift')} · Game ${n || ''}`, 'Present <em>Tree</em>', t('subGift'));
+  if (!u.pair) return h + bottom(waiting('NO PARTNER', t('noPartner')));
   if (!g) return h + bottom(waiting('READY'));
   const side = g.a === me ? 'a' : 'b';
   if (L.gkey !== g.turn + g.phase) { L.gkey = g.turn + g.phase; L.gsel = null; }
   const rem = remaining(g);
   const iSet = g.phase === 'set' && g.setter === side, iPick = g.phase === 'pick' && g.setter !== side, act = iSet || iPick;
-  if (g.over) h += `<div class="finish"><div class="eyebrow">Finish</div><div class="p">+${fmtN((g.score?.[side] || 0) * S.cfg.giftMul)}</div><div class="lbl" style="color:var(--gold2)">YOUR POINTS</div></div>`;
+  if (g.over) h += `<div class="finish"><div class="eyebrow">Finish</div><div class="p">+${fmtN((g.score?.[side] || 0) * S.cfg.giftMul)}</div><div class="lbl" style="color:var(--gold2)">${t('yourPoints')}</div></div>`;
   else {
-    h += `<div class="turnline">${act ? `<b>YOUR TURN</b>　${iSet ? '💣を入れるプレゼントを選ぶ' : '開けるプレゼントを選ぶ'}` : `<b>WAIT</b>　${g.phase === 'set' ? '相手が💣を入れています' : '相手が選んでいます'}`}
-      ${g.deadline ? `<span class="tm" data-deadline="${g.deadline}"></span>` : ''}</div>`;
-    if (g.lastPick) h += `<div class="lastline">前のターン：${g.lastPick === g.lastPos ? `${g.lastPick} は 💣！` : `${g.lastPick} を開けた（💣は ${g.lastPos}）`}</div>`;
+    h += `<div class="turnline ${act ? 'me' : ''}"><b>${act ? t('yourTurn') : t('wait')}</b><span>${act ? (iSet ? t('doHide') : t('doOpen')) : (g.phase === 'set' ? t('waitHide') : t('waitOpen'))}</span></div>`;
+    if (g.deadline) h += cdBar(g.deadline - S.cfg.giftTurnSec * 1000, g.deadline);
+    if (g.lastPick) h += `<div class="lastline">${g.lastPick === g.lastPos ? t('lastBomb', { n: g.lastPick }) : t('lastSafe', { n: g.lastPick, b: g.lastPos })}</div>`;
   }
   const cell = k => {
     const avail = rem.includes(k), myBomb = g.setter === side && g.phase === 'pick' && g.pos === k;
@@ -285,7 +306,8 @@ function viewGift() {
       <span class="hist">${log.filter(e => e.side === s).map(e => `<i class="${e.bomb ? 'b' : ''}">${e.bomb ? '💣' : '+' + e.num}</i>`).join('')}</span>
       <span class="tot">${g.score?.[s] || 0}</span></div>`;
   }).join('')}</div>`;
-  return h + bottom(act ? `<button class="btn" data-act="ggo" ${L.gsel ? '' : 'disabled'}>${iSet ? `Hide${L.gsel ? ' ' + L.gsel : ''}` : `Open${L.gsel ? ' ' + L.gsel : ''}`}<small>${iSet ? 'このプレゼントに💣を入れる' : 'このプレゼントを開ける'}</small></button>` : '');
+  h += `<div style="margin-top:14px">${rulesCard('gift', { sec: S.cfg.giftTurnSec })}</div>`;
+  return h + bottom(act ? `<button class="btn" data-act="ggo" ${L.gsel ? '' : 'disabled'}>${iSet ? `Hide${L.gsel ? ' ' + L.gsel : ''}` : `Open${L.gsel ? ' ' + L.gsel : ''}`}<small>${iSet ? t('hideSub') : t('openSub')}</small></button>` : '');
 }
 async function giftGo() {
   const g = S.gift, n = L.gsel; if (!g || !n) return;
@@ -322,7 +344,7 @@ function login(k) { me = k; store.setItem('xmas_me', me); db.presence('presence/
 
 const ACT = {
   async reg() {
-    const nick = val('nick'); if (!nick) return flash('ニックネームを入力 / Enter your name');
+    const nick = val('nick'); if (!nick) return flash(t('errName'));
     const n = await db.txn('meta/userCounter', c => (c || 0) + 1, true);
     const k = 'u' + String(n).padStart(2, '0');
     await db.set('users/' + k, { name: nick, joined: TS });
@@ -330,13 +352,15 @@ const ACT = {
   },
   async relogin() {
     const k = ukey(val('reid'));
-    if (!k || !(await db.get('users/' + k))) return flash('そのIDは見つかりません');
+    if (!k || !(await db.get('users/' + k))) return flash(t('errId'));
     login(k);
   },
   logout() {
     if (me) db.set('presence/' + me, null);
     store.removeItem('xmas_me'); me = null; L.err = ''; render();
   },
+  lang(el) { lang = el.dataset.l; localStorage.setItem('xmas_lang', lang); document.documentElement.lang = lang; render(); },
+  rules(el) { const k = el.dataset.k; L.rules[k] = L.rules[k] === false; render(); },
   choose(el) { L.sel = el.dataset.c; render(); },
   betset(el) { const f = +el.dataset.f, max = Math.max(total(), 0); L.bet = f === 1 ? max : Math.round(max * f / 10) * 10; render(); },
   async submit() {
@@ -354,13 +378,13 @@ const ACT = {
     await db.set(`users/${me}/team`, tid);
   },
   async jointeam() {
-    const tid = tkey(val('jteam')); if (!tid) return flash('チーム番号を入力してください');
+    const tid = tkey(val('jteam')); if (!tid) return flash(t('errTeamNo'));
     const r = await db.txn('teams/' + tid, cur => {
       const m = cur.members || {};
       if (Object.keys(m).length >= S.cfg.teamSize) return;
       m[me] = true; cur.members = m; return cur;
     });
-    if (!r) return flash('満員、またはそのチームはありません');
+    if (!r) return flash(t('errTeamFull'));
     await db.set(`users/${me}/team`, tid);
   },
   async leaveteam() {
@@ -376,15 +400,15 @@ const ACT = {
   },
   async pair() {
     const p = ukey(val('pid'));
-    if (!p || !S.users[p] || p === me) return flash('そのIDは見つかりません');
-    if (S.users[p].pair) return flash('その人はすでにペアがいます');
+    if (!p || !S.users[p] || p === me) return flash(t('errId'));
+    if (S.users[p].pair) return flash(t('errPaired'));
     await db.set(`users/${me}/pairReq`, p);
   },
   tool(el) {
     const i = +el.dataset.i, k = L.tools.indexOf(i);
     if (k >= 0) L.tools.splice(k, 1);
     else if (L.tools.length < S.cfg.pickCount) L.tools.push(i);
-    else return flash(`選べるのは ${S.cfg.pickCount} 個までです`);
+    else return flash(t('maxPick', { n: S.cfg.pickCount }));
     if (S.state.toolStep === 'team') db.set('tools/draft/' + U().team, L.tools.length ? [...L.tools] : null);
     render();
   },
@@ -427,6 +451,10 @@ async function checkPair() {
 function tick() {
   const now = db.now();
   for (const el of document.querySelectorAll('[data-deadline]')) el.textContent = fmtSec(+el.dataset.deadline - now);
+  const mmss = ms => { const s2 = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(s2 / 60)}:${String(s2 % 60).padStart(2, '0')}`; };
+  for (const el of document.querySelectorAll('[data-mmss]')) el.textContent = mmss(+el.dataset.mmss - now);
+  for (const el of document.querySelectorAll('.cdbar i')) { const s1 = +el.dataset.s, e1 = +el.dataset.e; el.style.width = Math.max(0, Math.min(100, (e1 - now) / (e1 - s1) * 100)) + '%'; }
+  for (const el of document.querySelectorAll('[data-tm]')) el.textContent = mmss(timerRemain(S.timer));
   for (const el of document.querySelectorAll('.rg[data-e]')) {
     const s = +el.dataset.s, e = +el.dataset.e, r = Math.max(0, Math.min(1, (e - now) / (e - s)));
     el.style.strokeDashoffset = (182.2 * (1 - r)).toFixed(1);
