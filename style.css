@@ -381,12 +381,16 @@ body.admin { background: #f3f2ee; min-height: 100vh; font-size: 14px; }
 .giftmini i.g { opacity: .3; }
 .giftmini i.b { background: #fbe9ee; border-color: #d2405e; color: #d2405e; font-weight: 700; }
 .spotadm { max-width: 860px; border: 1px solid #e6e0d2; border-radius: 10px; overflow: hidden; }
+.rgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.rgrid label { display: flex; flex-direction: column; gap: 4px; }
+.rgrid textarea { width: 100%; resize: vertical; line-height: 1.6; font-family: var(--jp); }
 .chk { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
 .chk input { width: 18px; height: 18px; accent-color: var(--navy); }
 @media (max-width: 860px) {
   .side { flex-wrap: nowrap; overflow-x: auto; padding: 8px 10px; gap: 4px 10px; }
   .side .brand { display: none; }
   .tg { flex-wrap: nowrap; padding-left: 8px; }
+  .rgrid { grid-template-columns: 1fr; }
   .main { padding: 0 12px 60px; }
   .step { grid-template-columns: 34px 1fr; }
   .step .sa { grid-column: 1 / -1; justify-content: flex-start; }

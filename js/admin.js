@@ -2,12 +2,13 @@
 import { db, TS, MOCK } from './db.js';
 import { CFG_DEFAULT, ITEMS, toArr, sum, ranking, gradeNormal, gradeR4, rankPoints, toolScore, spotCount,
   other, remaining, giftNew, giftAuto } from './logic.js';
+import { RULE_KEYS, RULES_DEFAULT } from './i18n.js';
 import { esc, teamColor, CHOICE_COLORS, compressImage, patch, fmtSec, fmtN, sid, ukey, tkey } from './ui.js';
 
 const app = document.getElementById('app');
 const S = { cfg: CFG_DEFAULT };
 const L = { page: localStorage.getItem('xmas_admin_page') || 'lobby', spotTeam: '', editQ: null, giftN: null };
-const KEYS = ['timer', 'state', 'users', 'teams', 'pairs', 'points', 'ctime', 'config', 'presence', 'questions', 'r4items', 'tools', 'secret', 'spot', 'gift', 'results'];
+const KEYS = ['rules', 'timer', 'state', 'users', 'teams', 'pairs', 'points', 'ctime', 'config', 'presence', 'questions', 'r4items', 'tools', 'secret', 'spot', 'gift', 'results'];
 for (const k of KEYS) db.on(k, v => { S[k] = v || {}; if (k === 'config') S.cfg = { ...CFG_DEFAULT, ...(v || {}) }; render(); });
 db.on('assets/tools', v => { S.toolAssets = toArr(v); render(); });
 db.on('assets/spot', v => { S.spotAsset = v; render(); });
@@ -38,7 +39,7 @@ const PHASE_JA = { timer: 'タイマー', lobby: '待機（ID表示）', team: '
 const playerURL = () => location.href.replace(/admin\.html.*$/, '');
 
 const PAGES = [
-  ['grp', '準備'], ['q', '問題リスト'], ['mat', 'チーム戦の素材'], ['cfg', '配点・設定'],
+  ['grp', '準備'], ['q', '問題リスト'], ['mat', 'チーム戦の素材'], ['rules', 'ルール'], ['cfg', '配点・設定'],
   ['grp', '本番（左から順に）'], ['lobby', '受付'], ['r1', '練習・個人戦'], ['team', 'チーム作り'], ['tools', 'チーム戦・NASAゲーム'], ['spot', 'チーム戦・間違い探し'],
   ['pair', 'ペア作り'], ['gift', 'R3 プレゼントツリー'], ['r4', 'R4 一発逆転'], ['final', '結果発表'],
   ['grp', 'ツール'], ['timer', 'タイマー'], ['people', '参加者・チーム・ペア'], ['score', '得点の修正'],
@@ -62,7 +63,7 @@ function render() {
   const statusBar = `<div class="status"><span class="now">参加者の画面：<b>${nowTxt}</b></span>
     <span class="pill">接続中 <b>${Object.keys(S.presence || {}).length}</b> / 登録 <b>${uids().length}</b></span>
     ${MOCK ? '<span class="pill test">ローカルお試しモード</span>' : ''}${S.cfg.testMode ? '<span class="pill test">テストモード ON</span>' : ''}</div>`;
-  const PG = { timer: pgTimer, q: pgQ, mat: pgMat, cfg: pgCfg, lobby: pgLobby, r1: pgR1, team: pgTeam, tools: pgTools, spot: pgSpot, pair: pgPair, gift: pgGift, r4: pgR4, final: pgFinal, people: pgPeople, score: pgScore };
+  const PG = { rules: pgRules, timer: pgTimer, q: pgQ, mat: pgMat, cfg: pgCfg, lobby: pgLobby, r1: pgR1, team: pgTeam, tools: pgTools, spot: pgSpot, pair: pgPair, gift: pgGift, r4: pgR4, final: pgFinal, people: pgPeople, score: pgScore };
   patch(app, `<div class="adm"><nav class="side">${side}</nav><main class="main">${statusBar}${(PG[L.page] || pgLobby)()}</main></div>`);
   if (L.page === 'mat' || L.page === 'spot') drawSpotAdmin();
   tick();
@@ -108,6 +109,18 @@ function drawSpotAdmin() {
   const marks = L.page === 'spot' && L.spotTeam ? toArr(S.spot?.[L.spotTeam]?.marks) : [];
   el.innerHTML = toArr(S.secret?.spotAns).map(a => `<div class="ans" style="left:${a.x * 100}%;top:${a.y * 100}%;width:${r * 200}%;height:${r * 200 / aspect}%"></div>`).join('')
     + marks.map(m => `<div class="mark" style="left:${m.x * 100}%;top:${m.y * 100}%"></div>`).join('');
+}
+
+// ===== 準備：ルール =====
+function pgRules() {
+  const cur = S.rules || {};
+  const text = (k, l) => cur[k]?.[l] != null ? cur[k][l] : (RULES_DEFAULT[k]?.[l] || []).join('\n');
+  return head('ルール', '参加者のスマホの各ステージに表示されるルールです。1行が1項目になります。言語ごとに編集して「保存」を押してください。<br>'
+    + '<code>{n}</code> などは設定値に自動で置き換わります：チーム作り・NASAゲーム＝<code>{n}</code>（定員／選ぶ数）、個人戦＝<code>{max}</code> <code>{min}</code>（点数）、間違い探し＝<code>{cap}</code>（〇の上限）、プレゼントツリー＝<code>{sec}</code>（1手の秒数）。')
+    + RULE_KEYS.map(([k, label]) => box(`${label}${cur[k] ? ' <span class="tb" style="background:var(--gold)">編集済み</span>' : ''}`,
+      `<div class="rgrid">${[['ja', '日本語'], ['en', 'English'], ['zh', '中文']].map(([l, ln]) => `<label><span class="hint">${ln}</span>
+        <textarea id="rl_${k}_${l}" rows="5" data-keep>${esc(text(k, l))}</textarea></label>`).join('')}</div>
+      <div class="rowf" style="margin-top:8px">${b('rlsave', '💾 保存', `data-k="${k}"`, 'main')} ${cur[k] ? b('rlreset', '初期値に戻す', `data-k="${k}"`, 'warn') : ''}</div>`)).join('');
 }
 
 // ===== 準備：配点・設定 =====
@@ -543,6 +556,16 @@ const ACT = {
   tmpause: () => db.update('timer', { running: false, remain: tRemain(S.timer) }),
   tmresume: () => db.update('timer', { running: true, endAt: db.now() + (S.timer?.remain || 0) }),
   tmadd: el => { const tm = S.timer || {}, d = +el.dataset.s * 1000; return tm.running ? db.update('timer', { endAt: Math.max(db.now(), tm.endAt + d) }) : db.update('timer', { remain: Math.max(0, (tm.remain || 0) + d) }); },
+  async rlsave(el) {
+    const k = el.dataset.k, out = {};
+    for (const l of ['ja', 'en', 'zh']) out[l] = (document.getElementById(`rl_${k}_${l}`)?.value || '').trim();
+    await db.set('rules/' + k, out);
+  },
+  async rlreset(el) {
+    const k = el.dataset.k; if (!confirm('このステージのルールを初期値に戻しますか？')) return;
+    for (const l of ['ja', 'en', 'zh']) document.getElementById(`rl_${k}_${l}`)?.remove();
+    await db.set('rules/' + k, null);
+  },
   async manualpt() {
     const k = ukey(val('mp_id')), n = Math.round(+val('mp_pt'));
     if (!k || !users()[k] || !n) return alert('IDか点数が正しくありません');

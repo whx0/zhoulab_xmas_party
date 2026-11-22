@@ -26,6 +26,7 @@ db.on('users', v => { S.users = v || {}; render(); });
 db.on('teams', v => { S.teams = v || {}; render(); });
 db.on('config', v => { S.cfg = { ...CFG_DEFAULT, ...(v || {}) }; render(); });
 db.on('timer', v => { S.timer = v; render(); });
+db.on('rules', v => { S.rules = v; render(); });
 if (me) db.presence('presence/' + me);
 
 const U = () => S.users[me];
@@ -68,7 +69,7 @@ const cdBar = (s, e) => `<div class="cd"><div class="cdt"><span>${ICON.clock}${t
 const rulesCard = (key, v) => {
   const open = L.rules[key] !== false;
   return `<div class="rules ${open ? 'open' : ''}"><button class="rh" data-act="rules" data-k="${key}">${ICON.star}<span>${t('rules')}</span><i>${open ? '−' : '+'}</i></button>
-    ${open ? `<ol>${rl(lang, key, v).map(x => `<li>${esc(x)}</li>`).join('')}</ol>` : ''}</div>`;
+    ${open ? `<ol>${rl(lang, key, v, S.rules).map(x => `<li>${esc(x)}</li>`).join('')}</ol>` : ''}</div>`;
 };
 const hd = (eyebrow, title, sub = '') => `<div class="hd"><div class="eyebrow">${eyebrow}</div><div class="title">${title}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div>`;
 const waiting = (en, jp = '') => `<div class="waiting"><div class="dm"><i></i><i></i><i></i></div><div class="en">${en}</div>${jp ? `<div class="jp">${jp}</div>` : ''}</div>`;

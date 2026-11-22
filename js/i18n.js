@@ -134,6 +134,13 @@ const R = {
   },
 };
 
+export const RULE_KEYS = [['lobby', '受付・待機'], ['practice', '練習問題'], ['solo', '個人戦'], ['team', 'チーム作り'], ['nasa', 'チーム戦・NASAゲーム'], ['spot', 'チーム戦・間違い探し'], ['pair', 'ペア作り'], ['gift', 'プレゼントツリー'], ['final', '一発逆転']];
+export const RULES_DEFAULT = R;
 const fill = (s, v) => s.replace(/\{(\w+)\}/g, (_, k) => v?.[k] ?? '');
 export const t = (lang, key, v) => fill(T[key]?.[lang] ?? T[key]?.ja ?? key, v);
-export const rules = (lang, key, v) => (R[key]?.[lang] || R[key]?.ja || []).map(s => fill(s, v));
+// custom = 管理者が編集したルール（{key: {ja: '1行目\n2行目', en: ..., zh: ...}}）。無ければ初期値
+export const rules = (lang, key, v, custom) => {
+  const c = custom?.[key];
+  const lines = c ? String(c[lang] || c.ja || '').split('\n').map(x => x.trim()).filter(Boolean) : null;
+  return (lines && lines.length ? lines : (R[key]?.[lang] || R[key]?.ja || [])).map(s => fill(s, v));
+};
