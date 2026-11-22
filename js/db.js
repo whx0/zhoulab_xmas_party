@@ -5,13 +5,25 @@ const forceMock = new URLSearchParams(location.search).has('mock');
 export const MOCK = forceMock || !FIREBASE_CONFIG.apiKey;
 export const TS = { '.sv': 'timestamp' };
 
-let api;
+let api, authApi;
 
 if (!MOCK) {
   const V = '10.12.2';
   const { initializeApp } = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`);
   const D = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-database.js`);
-  const db = D.getDatabase(initializeApp(FIREBASE_CONFIG));
+  const A = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`);
+  const fapp = initializeApp(FIREBASE_CONFIG);
+  const db = D.getDatabase(fapp);
+  const auth = A.getAuth(fapp);
+  await auth.authStateReady();
+  // 参加者・タイマー画面は自動で匿名ログイン（管理者画面は Google ログイン）
+  if (!auth.currentUser && !location.pathname.endsWith('admin.html')) await A.signInAnonymously(auth);
+  authApi = {
+    user: () => auth.currentUser,
+    uid: () => auth.currentUser?.uid || null,
+    google: () => A.signInWithPopup(auth, new A.GoogleAuthProvider()),
+    signOut: () => A.signOut(auth),
+  };
   const R = p => D.ref(db, p);
   let offset = 0;
   D.onValue(R('.info/serverTimeOffset'), s => { offset = s.val() || 0; });
@@ -102,4 +114,6 @@ if (!MOCK) {
   };
 }
 
+if (!authApi) authApi = { user: () => ({ email: 'local', uid: 'local' }), uid: () => 'local', google: async () => {}, signOut: async () => {} };
 export const db = api;
+export const auth = authApi;

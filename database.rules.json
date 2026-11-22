@@ -1,6 +1,120 @@
 {
   "rules": {
-    ".read": true,
-    ".write": true
+    ".read": "(auth != null && auth.token.email_verified == true && (auth.token.email.toLowerCase() == 'ADMIN_EMAIL@example.com'))",
+    ".write": "(auth != null && auth.token.email_verified == true && (auth.token.email.toLowerCase() == 'ADMIN_EMAIL@example.com'))",
+    "state": {
+      ".read": "auth != null"
+    },
+    "config": {
+      ".read": "auth != null"
+    },
+    "timer": {
+      ".read": "auth != null"
+    },
+    "rules": {
+      ".read": "auth != null"
+    },
+    "questions": {
+      ".read": "auth != null"
+    },
+    "results": {
+      ".read": "auth != null"
+    },
+    "points": {
+      ".read": "auth != null"
+    },
+    "ctime": {
+      ".read": "auth != null"
+    },
+    "assets": {
+      ".read": "auth != null"
+    },
+    "meta": {
+      ".read": "auth != null",
+      "userCounter": {
+        ".write": "auth != null",
+        ".validate": "newData.isNumber()"
+      },
+      "teamCounter": {
+        ".write": "auth != null",
+        ".validate": "newData.isNumber()"
+      }
+    },
+    "presence": {
+      ".read": "auth != null",
+      "$k": {
+        ".write": "root.child('users/' + $k + '/uid').val() == auth.uid"
+      }
+    },
+    "users": {
+      ".read": "auth != null",
+      "$k": {
+        ".write": "!data.exists() && newData.child('uid').val() == auth.uid",
+        "uid": {
+          ".write": "auth != null && (!data.exists() || data.val() == auth.uid) && newData.val() == auth.uid"
+        },
+        "name": {
+          ".write": "root.child('users/' + $k + '/uid').val() == auth.uid"
+        },
+        "team": {
+          ".write": "auth != null"
+        },
+        "pair": {
+          ".write": "auth != null"
+        },
+        "pairReq": {
+          ".write": "auth != null"
+        }
+      }
+    },
+    "teams": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "pairs": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "answers": {
+      "$q": {
+        "$k": {
+          ".read": "root.child('users/' + $k + '/uid').val() == auth.uid",
+          ".write": "!data.exists() && root.child('users/' + $k + '/uid').val() == auth.uid && root.child('questions/' + $q + '/open').val() == true",
+          ".validate": "newData.child('t').val() == now"
+        }
+      }
+    },
+    "tools": {
+      ".read": "auth != null",
+      "solo": {
+        "$k": {
+          ".write": "root.child('users/' + $k + '/uid').val() == auth.uid"
+        }
+      },
+      "draft": {
+        "$t": {
+          ".write": "root.child('users/' + root.child('teams/' + $t + '/leader').val() + '/uid').val() == auth.uid"
+        }
+      },
+      "team": {
+        "$t": {
+          ".write": "root.child('users/' + root.child('teams/' + $t + '/leader').val() + '/uid').val() == auth.uid"
+        }
+      }
+    },
+    "spot": {
+      ".read": "auth != null",
+      "$t": {
+        ".write": "root.child('users/' + root.child('teams/' + $t + '/leader').val() + '/uid').val() == auth.uid"
+      }
+    },
+    "gift": {
+      ".read": "auth != null",
+      "$g": {
+        "$p": {
+          ".write": "data.exists() && (root.child('users/' + data.child('a').val() + '/uid').val() == auth.uid || root.child('users/' + data.child('b').val() + '/uid').val() == auth.uid) && newData.child('a').val() == data.child('a').val() && newData.child('b').val() == data.child('b').val()"
+        }
+      }
+    }
   }
 }

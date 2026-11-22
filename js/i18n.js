@@ -25,6 +25,7 @@ const T = {
   relogin: { ja: 'ID で復帰する', en: 'Re-login with your ID', zh: '用ID重新登录' },
   mock: { ja: 'ローカルお試しモード（タブごとに別の参加者）', en: 'Local demo mode (each tab = one player)', zh: '本地试用模式（每个标签页是一位参加者）' },
   errName: { ja: 'ニックネームを入力してください', en: 'Please enter your name', zh: '请输入昵称' },
+  errDevice: { ja: 'このIDは別の端末で使われています。幹事に伝えてください', en: 'This ID is used on another device. Please tell the host', zh: '这个ID正在其他设备上使用，请告诉主持人' },
   errId: { ja: 'そのIDは見つかりません', en: 'That ID was not found', zh: '找不到这个ID' },
   // ---- ホーム ----
   welcome: { ja: 'ようこそ', en: 'Welcome', zh: '欢迎' },

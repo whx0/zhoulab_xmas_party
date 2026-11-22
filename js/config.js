@@ -7,3 +7,6 @@ export const FIREBASE_CONFIG = {
   projectId: "",
   appId: "",
 };
+
+// 管理者として使う Google アカウントのメールアドレス（database.rules.json にも同じものを書く）
+export const ADMIN_EMAILS = [];

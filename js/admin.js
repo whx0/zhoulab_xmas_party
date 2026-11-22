@@ -1,11 +1,27 @@
 // 管理者画面（当日の進行順に、上から押していけばいい作り）
-import { db, TS, MOCK } from './db.js';
+import { db, TS, MOCK, auth } from './db.js';
+import { ADMIN_EMAILS } from './config.js';
 import { CFG_DEFAULT, ITEMS, toArr, sum, ranking, gradeNormal, gradeR4, rankPoints, toolScore, spotCount,
   other, remaining, giftNew, giftAuto } from './logic.js';
 import { RULE_KEYS, RULES_DEFAULT } from './i18n.js';
 import { esc, teamColor, CHOICE_COLORS, compressImage, patch, fmtSec, fmtN, sid, ukey, tkey } from './ui.js';
 
 const app = document.getElementById('app');
+
+// ---------- 管理者ログイン（Google）。管理者以外はここで止まる ----------
+if (!MOCK) {
+  const u = auth.user();
+  const isAdmin = u && !u.isAnonymous && ADMIN_EMAILS.map(x => x.toLowerCase()).includes((u.email || '').toLowerCase());
+  if (!isAdmin) {
+    app.innerHTML = `<div class="login"><div class="brand">Xmas Party<small>ADMIN · ZHOU LAB</small></div>
+      <p>${u && !u.isAnonymous ? `<b>${esc(u.email)}</b> は管理者として登録されていません。` : '管理者のGoogleアカウントでログインしてください。'}</p>
+      <button class="ab main big" id="glogin">Googleでログイン</button>${u ? '<button class="ab" id="gout">ログアウト</button>' : ''}</div>`;
+    document.getElementById('glogin').onclick = async () => { try { await auth.google(); location.reload(); } catch (e) { alert('ログインできませんでした：' + e.message); } };
+    document.getElementById('gout')?.addEventListener('click', async () => { await auth.signOut(); location.reload(); });
+    await new Promise(() => {});
+  }
+}
+
 const S = { cfg: CFG_DEFAULT };
 const L = { page: localStorage.getItem('xmas_admin_page') || 'lobby', spotTeam: '', editQ: null, giftN: null };
 const KEYS = ['rules', 'timer', 'state', 'users', 'teams', 'pairs', 'points', 'ctime', 'config', 'presence', 'questions', 'r4items', 'tools', 'secret', 'spot', 'gift', 'results'];
@@ -62,7 +78,8 @@ function render() {
   const nowTxt = PHASE_JA[st.phase] ? PHASE_JA[st.phase] + (st.phase === 'quiz' && q ? `（${RN[q.round]} No.${q.no}）` : st.phase === 'gift' && st.giftGame ? `（ゲーム${st.giftGame}）` : '') : 'まだ何も表示していません';
   const statusBar = `<div class="status"><span class="now">参加者の画面：<b>${nowTxt}</b></span>
     <span class="pill">接続中 <b>${Object.keys(S.presence || {}).length}</b> / 登録 <b>${uids().length}</b></span>
-    ${MOCK ? '<span class="pill test">ローカルお試しモード</span>' : ''}${S.cfg.testMode ? '<span class="pill test">テストモード ON</span>' : ''}</div>`;
+    ${MOCK ? '<span class="pill test">ローカルお試しモード</span>' : ''}${S.cfg.testMode ? '<span class="pill test">テストモード ON</span>' : ''}
+    ${MOCK ? '' : `<span class="hint" style="margin-left:auto">${esc(auth.user()?.email || '')} ${b('logout', 'ログアウト')}</span>`}</div>`;
   const PG = { rules: pgRules, timer: pgTimer, q: pgQ, mat: pgMat, cfg: pgCfg, lobby: pgLobby, r1: pgR1, team: pgTeam, tools: pgTools, spot: pgSpot, pair: pgPair, gift: pgGift, r4: pgR4, final: pgFinal, people: pgPeople, score: pgScore };
   patch(app, `<div class="adm"><nav class="side">${side}</nav><main class="main">${statusBar}${(PG[L.page] || pgLobby)()}</main></div>`);
   if (L.page === 'mat' || L.page === 'spot') drawSpotAdmin();
@@ -359,7 +376,8 @@ function pgPeople() {
     + box(`参加者（${uids().length}人）`, `<div class="scroll"><table class="tbl"><tr><th>参加者</th><th>接続</th><th>チーム</th><th>ペア</th><th style="text-align:right">得点</th><th></th></tr>
       ${uids().map(k => `<tr><td>${who(k)}</td><td>${S.presence?.[k] ? '🟢' : '⚪'}</td><td>${tb(us[k].team)}${us[k].team && S.teams?.[us[k].team]?.leader === k ? ' 👑' : ''}</td>
         <td>${us[k].pair ? us[k].pair.split('-').filter(x => x !== k).map(who).join('') : '—'}</td><td class="r">${fmtN(total(k))}</td>
-        <td style="text-align:right">${b('deluser', '削除', `data-u="${k}"`, 'warn')}</td></tr>`).join('')}</table></div>`)
+        <td style="text-align:right">${us[k].uid ? b('unbind', '端末の付け替えを許可', `data-u="${k}"`) : '<span class="hint">付け替え待ち</span>'} ${b('deluser', '削除', `data-u="${k}"`, 'warn')}</td></tr>`).join('')}</table></div>
+      <p class="hint">参加者がスマホを変えたいときは「端末の付け替えを許可」を押してから、新しい端末で「IDで復帰」をしてもらいます。</p>`)
     + box('チーム', teamTable(S.teams || {}) + `<div class="rowf" style="margin-top:10px">ID <input id="mt_u" class="s" data-keep> を チーム <input id="mt_t" class="s" data-keep> に ${b('mteam', '入れる', '', 'main')} ${b('mleader', 'リーダーにする')} ${b('unteam', 'チームから外す', '', 'warn')}</div>`)
     + box('ペア', pairTable(S.pairs || {}) + `<div class="rowf" style="margin-top:10px">ID <input id="mp_a" class="s" data-keep> と ID <input id="mp_b" class="s" data-keep> を ${b('mpair', 'ペアにする', '', 'main')}</div>`);
 }
@@ -404,6 +422,8 @@ async function giftStep(path, force) {
 }
 
 const ACT = {
+  logout: async () => { await auth.signOut(); location.reload(); },
+  unbind: el => confirm('このIDを別の端末でログインできるようにしますか？（参加者がその端末で「IDで復帰」を使います）') && db.set(`users/${el.dataset.u}/uid`, null),
   go: el => { L.page = el.dataset.p; localStorage.setItem('xmas_admin_page', L.page); scrollTo(0, 0); render(); },
   phase: el => setState({ phase: el.dataset.p, result: null }),
 
@@ -634,16 +654,17 @@ setInterval(async () => {
       if (q.open && q.limit && now > q.startAt + q.limit * 1000 + 1500) await db.update('questions/' + qid, { open: false });
     if (st.toolOpen && now > st.toolEndAt) await setState({ toolOpen: false });
     if (st.spotOpen && now > st.spotEndAt) await setState({ spotOpen: false });
-    if (st.phase === 'gift' && st.giftGame) {
-      const n = st.giftGame, up = {};
-      for (const [pid, g] of Object.entries(S.gift?.['g' + n] || {})) {
-        if (!g.over) { if (g.deadline && now > g.deadline + 4000) await giftStep(`gift/g${n}/${pid}`, false); continue; }
+    const up = {};
+    for (const [gk, games] of Object.entries(S.gift || {})) {          // R3：時間切れの保険と、終わったペアへの自動加点
+      const n = gk.slice(1);
+      for (const [pid, g] of Object.entries(games || {})) {
+        if (!g.over) { if (st.phase === 'gift' && +st.giftGame === +n && g.deadline && now > g.deadline + 4000) await giftStep(`gift/${gk}/${pid}`, false); continue; }
         const src = 'r3g' + n, va = (g.score?.a || 0) * S.cfg.giftMul, vb = (g.score?.b || 0) * S.cfg.giftMul;
         if (points()[g.a]?.[src] !== va) up[`${g.a}/${src}`] = va;
         if (points()[g.b]?.[src] !== vb) up[`${g.b}/${src}`] = vb;
       }
-      if (Object.keys(up).length) await db.update('points', up);
     }
+    if (Object.keys(up).length) await db.update('points', up);
   } finally { busy = false; }
 }, 500);
 render();

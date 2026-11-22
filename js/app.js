@@ -1,5 +1,5 @@
 // 参加者画面
-import { db, TS, MOCK } from './db.js';
+import { db, TS, MOCK, auth } from './db.js';
 import { CFG_DEFAULT, toArr, sum, other, remaining, ranking, giftSet, giftPick, giftAuto } from './logic.js';
 import { esc, patch, fmtSec, fmtN, sid, ukey, tkey, ICON, wreathHTML, ornamentHTML, BG_HTML } from './ui.js';
 import { LANGS, t as tr, rules as rl } from './i18n.js';
@@ -331,13 +331,7 @@ async function giftGo() {
 async function giftTick() {
   const g = S.gift; if (S.state.phase !== 'gift' || !g || !U()?.pair) return;
   const path = `gift/g${S.state.giftGame}/${U().pair}`;
-  if (g.over) {
-    const key = path + ':' + (g.score?.a ?? 0) + ':' + (g.score?.b ?? 0);
-    if (L.paid[key]) return; L.paid[key] = true;
-    const m = S.cfg.giftMul, src = 'r3g' + S.state.giftGame;
-    await db.update('points', { [`${g.a}/${src}`]: (g.score?.a || 0) * m, [`${g.b}/${src}`]: (g.score?.b || 0) * m });
-    return;
-  }
+  if (g.over) return;   // 加点は管理者画面が自動で行う
   if (!g.deadline || db.now() < g.deadline + 1500) return;
   await db.txn(path, cur => {
     if (cur.over || cur.turn !== g.turn || cur.phase !== g.phase || db.now() < cur.deadline + 1500) return;
@@ -356,12 +350,17 @@ const ACT = {
     const nick = val('nick'); if (!nick) return flash(t('errName'));
     const n = await db.txn('meta/userCounter', c => (c || 0) + 1, true);
     const k = 'u' + String(n).padStart(2, '0');
-    await db.set('users/' + k, { name: nick, joined: TS });
+    await db.set('users/' + k, { name: nick, joined: TS, uid: auth.uid() });
     login(k);
   },
   async relogin() {
     const k = ukey(val('reid'));
-    if (!k || !(await db.get('users/' + k))) return flash(t('errId'));
+    const u = k && await db.get('users/' + k);
+    if (!u) return flash(t('errId'));
+    if (u.uid !== auth.uid()) {
+      try { await db.set(`users/${k}/uid`, auth.uid()); }
+      catch { return flash(t('errDevice')); }   // 別の端末で使用中（幹事が「端末の付け替え」を許可すると使える）
+    }
     login(k);
   },
   logout() {
