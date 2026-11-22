@@ -220,7 +220,9 @@ function viewPair() {
   const rc = `<div style="margin-top:14px">${rulesCard('pair')}</div>`;
   if (u.pair) {
     const p = partnerOf(u.pair);
-    return h + wreathHTML(`<div class="lbl">YOUR PARTNER</div><div class="big xl" style="font-size:80px">${esc(sid(p))}</div><div style="letter-spacing:.1em">${esc(name(p))}</div>`, { size: 200 }) + bottom(waiting('PAIRED', t('paired')));
+    return h + wreathHTML(`<div class="lbl">YOUR PARTNER</div><div class="big xl" style="font-size:80px">${esc(sid(p))}</div><div style="letter-spacing:.1em">${esc(name(p))}</div>`, { size: 200 })
+      + `<div class="chips"><span class="chip">${ICON.check}${t('paired')}</span></div>`
+      + bottom(waiting('PAIRED', t('pairedWait')) + `<button class="btn light" data-act="unpair" style="margin-top:14px">Redo<small>${t('redoPair')}</small></button>`);
   }
   return h + `<div class="card lined"><div class="lbl">${t('partnerId')}</div>
     <div class="inline"><div class="field">${ICON.link}<input id="pid" inputmode="numeric" placeholder="ID"></div><button class="btn" data-act="pair">OK</button></div>
@@ -411,6 +413,11 @@ const ACT = {
     if (!p || !S.users[p] || p === me) return flash(t('errId'));
     if (S.users[p].pair) return flash(t('errPaired'));
     await db.set(`users/${me}/pairReq`, p);
+  },
+  async unpair() {
+    const u = U(); if (!u?.pair || S.state.phase !== 'pair' || !confirm(t('redoConfirm'))) return;
+    const [a, b] = u.pair.split('-');
+    await db.update('', { [`pairs/${u.pair}`]: null, [`users/${a}/pair`]: null, [`users/${b}/pair`]: null, [`users/${a}/pairReq`]: null, [`users/${b}/pairReq`]: null });
   },
   tool(el) {
     const i = +el.dataset.i, k = L.tools.indexOf(i);

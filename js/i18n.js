@@ -55,6 +55,9 @@ const T = {
   partnerId: { ja: '相手のID', en: 'Partner’s ID', zh: '对方的ID' },
   waitPartner: { ja: 'ID {id}（{name}）の入力を待っています…', en: 'Waiting for ID {id} ({name}) to enter your ID…', zh: '正在等待 ID {id}（{name}）输入你的ID…' },
   paired: { ja: 'ペア成立', en: 'Paired!', zh: '配对成功' },
+  pairedWait: { ja: 'ペア成立！次のゲームが始まるまでお待ちください', en: 'Paired! Please wait for the next game', zh: '配对成功！请等待下一个游戏开始' },
+  redoPair: { ja: 'ペアをやり直す', en: 'Change partner', zh: '重新配对' },
+  redoConfirm: { ja: 'ペアを解除して、やり直しますか？（相手のペアも解除されます）', en: 'Cancel this pair and choose again? (Your partner will be unpaired too)', zh: '要解除配对重新选择吗？（对方的配对也会解除）' },
   errPaired: { ja: 'その人はすでにペアがいます', en: 'That person already has a partner', zh: '对方已经有搭档了' },
   // ---- NASA ----
   subNasaSolo: { ja: '持っていく道具を {n} 個えらぼう（まずは1人で）', en: 'Pick {n} items to bring (on your own first)', zh: '选出要带的 {n} 件物品（先自己选）' },

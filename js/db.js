@@ -24,7 +24,7 @@ if (!MOCK) {
     google: () => A.signInWithPopup(auth, new A.GoogleAuthProvider()),
     signOut: () => A.signOut(auth),
   };
-  const R = p => D.ref(db, p);
+  const R = p => (p ? D.ref(db, p) : D.ref(db));   // '' はルート（ref(db, '') はエラーになる）
   let offset = 0;
   D.onValue(R('.info/serverTimeOffset'), s => { offset = s.val() || 0; });
   api = {
