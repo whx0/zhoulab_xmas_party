@@ -310,7 +310,7 @@ function viewGift() {
     const kind = act ? (iSet ? 'hide' : 'open') : 'wait';
     h += `<div class="role ${kind}"><div class="ric">${kind === 'hide' ? ICON.bomb : kind === 'open' ? ICON.gift : ICON.clock}</div>
       <div class="rtx"><div class="rwho">${act ? t('yourTurn') : t('wait')}</div><div class="rwhat">${act ? (iSet ? t('roleHide') : t('roleOpen')) : (g.phase === 'set' ? t('roleHide') : t('roleOpen'))}</div>
-      <div class="rdesc">${act ? (iSet ? t('doHide') : t('doOpen')) : (g.phase === 'set' ? t('waitHide') : t('waitOpen'))}</div></div></div>`;
+      ${act ? '' : `<div class="rdesc">${g.phase === 'set' ? t('waitHide') : t('waitOpen')}</div>`}</div></div>`;
     if (g.deadline) h += cdBar(g.deadline - S.cfg.giftTurnSec * 1000, g.deadline);
     if (g.lastPick) h += `<div class="lastline">${g.lastPick === g.lastPos ? t('lastBomb', { n: g.lastPick }) : t('lastSafe', { n: g.lastPick, b: g.lastPos })}</div>`;
   }
