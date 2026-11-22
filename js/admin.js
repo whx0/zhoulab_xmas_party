@@ -52,13 +52,15 @@ const step = (n, title, desc, actions, st = '') => `<div class="step ${st}"><div
 const box = (title, inner, extra = '') => `<div class="box"><h4>${title}${extra}</h4>${inner}</div>`;
 const kpi = (k, v) => `<div class="kpi"><div class="k">${k}</div><div class="v">${v}</div></div>`;
 const PHASE_JA = { timer: 'タイマー', lobby: '待機（ID表示）', team: 'チーム作り', pair: 'ペア作り', quiz: '問題', tools: '道具選び', spot: '間違い探し', gift: 'プレゼントゲーム', end: '終了' };
+// ゲームの記録（参加者以外）
+const PLAY_DATA = { points: null, ctime: null, answers: null, results: null, questions: null, tools: null, spot: null, gift: null, teams: null, pairs: null, r4items: null, timer: null };
 const playerURL = () => location.href.replace(/admin\.html.*$/, '');
 
 const PAGES = [
-  ['grp', '準備'], ['q', '問題リスト'], ['mat', 'チーム戦の素材'], ['rules', '見出し・ルール'], ['cfg', '配点・設定'],
-  ['grp', '本番（左から順に）'], ['lobby', '受付'], ['r1', '練習・個人戦'], ['team', 'チーム作り'], ['tools', 'チーム戦・NASAゲーム'], ['spot', 'チーム戦・間違い探し'],
+  ['grp', '準備', 'prep'], ['q', '問題リスト'], ['mat', 'チーム戦の素材'], ['rules', '見出し・ルール'], ['cfg', '配点・設定'],
+  ['grp', '本番（左から順に）', 'live'], ['lobby', '受付'], ['r1', '練習・個人戦'], ['team', 'チーム作り'], ['tools', 'チーム戦・NASAゲーム'], ['spot', 'チーム戦・間違い探し'],
   ['pair', 'ペア作り'], ['gift', 'R3 プレゼントゲーム'], ['r4', 'R4 一発逆転'], ['final', '結果発表'],
-  ['grp', 'ツール'], ['timer', 'タイマー'], ['people', '参加者・チーム・ペア'], ['score', '得点の修正'],
+  ['grp', 'ツール', 'tool'], ['timer', 'タイマー'], ['people', '参加者・チーム・ペア'], ['score', '得点の修正'],
 ];
 function livePage() {
   const st = S.state || {}, q = S.questions?.[st.qid];
@@ -70,18 +72,24 @@ function render() {
   const st = S.state || {};
   watchAnswers(st.qid);
   const live = livePage();
-  let n = 0, groups = [], cur = null;
-  for (const [k, l] of PAGES) { if (k === 'grp') { cur = { l, items: [] }; groups.push(cur); } else cur.items.push([k, l]); }
-  const side = `<div class="brand">Xmas Party<small>ADMIN · ZHOU LAB</small></div>` + groups.map(g => `<div class="tg"><span class="grp">${g.l}</span>${g.items.map(([k, l]) =>
-    `<button class="nav ${L.page === k ? 'on' : ''}" data-act="go" data-p="${k}"><span class="n">${++n}</span>${l}${live === k ? '<span class="live">LIVE</span>' : ''}</button>`).join('')}</div>`).join('');
+  let groups = [], cur = null, pgGrp = 'live', pgLabel = '', pgNo = 0;
+  for (const [k, l, gk] of PAGES) { if (k === 'grp') { cur = { l, gk, items: [] }; groups.push(cur); } else cur.items.push([k, l]); }
+  const side = `<div class="brand">Xmas Party<small>ADMIN · ZHOU LAB</small></div>` + groups.map(g => `<div class="tg g-${g.gk}"><span class="grp">${g.l}</span>${g.items.map(([k, l], i) => {
+    if (L.page === k) { pgGrp = g.gk; pgLabel = g.l; pgNo = i + 1; }
+    return `<button class="nav ${L.page === k ? 'on' : ''}" data-act="go" data-p="${k}"><span class="n">${i + 1}</span>${l}${live === k ? '<span class="live">LIVE</span>' : ''}</button>`;
+  }).join('')}</div>`).join('');
   const q = S.questions?.[st.qid];
   const nowTxt = PHASE_JA[st.phase] ? PHASE_JA[st.phase] + (st.phase === 'quiz' && q ? `（${RN[q.round]} No.${q.no}）` : st.phase === 'gift' && st.giftGame ? `（ゲーム${st.giftGame}）` : '') : 'まだ何も表示していません';
-  const statusBar = `<div class="status"><span class="now">参加者の画面：<b>${nowTxt}</b></span>
+  const statusBar = `<div class="status"><span class="now"><i class="dot ${st.phase ? 'on' : ''}"></i>いま参加者の画面：<b>${nowTxt}</b></span>
     <span class="pill">接続中 <b>${Object.keys(S.presence || {}).length}</b> / 登録 <b>${uids().length}</b></span>
     ${MOCK ? '<span class="pill test">ローカルお試しモード</span>' : ''}${S.cfg.testMode ? '<span class="pill test">テストモード ON</span>' : ''}
     ${MOCK ? '' : `<span class="hint" style="margin-left:auto">${esc(auth.user()?.email || '')} ${b('logout', 'ログアウト')}</span>`}</div>`;
   const PG = { rules: pgRules, timer: pgTimer, q: pgQ, mat: pgMat, cfg: pgCfg, lobby: pgLobby, r1: pgR1, team: pgTeam, tools: pgTools, spot: pgSpot, pair: pgPair, gift: pgGift, r4: pgR4, final: pgFinal, people: pgPeople, score: pgScore };
-  patch(app, `<div class="adm"><nav class="side">${side}</nav><main class="main">${statusBar}${(PG[L.page] || pgLobby)()}</main></div>`);
+  const flow = PAGES.filter(p => p[0] !== 'grp'), liveKeys = groups.find(g => g.gk === 'live').items.map(x => x[0]);
+  const idx = liveKeys.indexOf(L.page), next = idx >= 0 && idx < liveKeys.length - 1 ? flow.find(p => p[0] === liveKeys[idx + 1]) : null;
+  const crumb = `<div class="crumb"><span class="gp">${esc(pgLabel.replace(/（.*）/, ''))}</span><span class="cn">${pgNo}</span></div>`;
+  const nextBtn = next ? `<div class="nextbar">${b('go', `次へ：${next[1]} →`, `data-p="${next[0]}"`, 'main big')}</div>` : '';
+  patch(app, `<div class="adm"><nav class="side">${side}</nav><main class="main g-${pgGrp}">${statusBar}${crumb}${(PG[L.page] || pgLobby)()}${nextBtn}</main></div>`);
   if (L.page === 'mat' || L.page === 'spot') drawSpotAdmin();
   tick();
 }
@@ -160,8 +168,12 @@ function pgCfg() {
   }).join('');
   return head('配点・設定', '得点はすべて0からの加点です（R4で外したときだけ減ります。0未満にはなりません）。')
     + box('配点・設定', `<table class="tbl cfgt">${rows}</table><div class="rowf" style="margin-top:12px">${b('cfgsave', '💾 保存', '', 'main big')} ${b('cfgdefault', '初期値に戻す', '', 'warn')}</div>`)
-    + box('データ', `<div class="rowf">${b('backup', '⬇ バックアップ（JSON）')} ${b('wipeplay', '得点・回答・チーム・ペアだけ消す（リハーサル後）', '', 'warn')} ${b('wipe', 'すべて消す', '', 'warn')}</div>
-      <p class="hint">「得点・回答〜だけ消す」は、登録した参加者・問題リスト・画像・設定を残します。</p>`);
+    + box('データを消す', `<div class="wipes">
+        <div class="wipe"><b>① ゲームの記録だけ消す</b><span class="hint">得点・回答・チーム・ペア・ゲーム。参加者はそのまま（同じIDで続けられる）</span>${b('wipeplay', '消す', '', 'warn')}</div>
+        <div class="wipe"><b>② 参加者も含めて消す（リハーサル後におすすめ）</b><span class="hint">①＋参加者。全員ログイン画面に戻り、IDは 01 から。問題・画像・ルール・設定は残る</span>${b('wipepeople', '消す', '', 'warn')}</div>
+        <div class="wipe"><b>③ すべて消す</b><span class="hint">問題リスト・画像・ルール・設定も含めて全部</span>${b('wipe', '消す', '', 'warn')}</div></div>
+      <div class="rowf" style="margin-top:12px">${b('backup', '⬇ 消す前にバックアップ（JSON）')}</div>
+`);
 }
 
 // ===== 本番：受付 =====
@@ -509,7 +521,9 @@ const ACT = {
   async deluser(el) {
     const k = el.dataset.u; if (!confirm(`${name(k)}（ID ${sid(k)}）を削除しますか？`)) return;
     await teamRemove(k); if (users()[k]?.pair) await unpair(users()[k].pair);
-    await db.update('', { [`users/${k}`]: null, [`points/${k}`]: null, [`ctime/${k}`]: null, [`presence/${k}`]: null });
+    const up = { [`users/${k}`]: null, [`points/${k}`]: null, [`ctime/${k}`]: null, [`presence/${k}`]: null };
+    if (uids().length <= 1) up['meta/userCounter'] = null;            // 最後の1人を消したら ID を 01 から振り直す
+    await db.update('', up);
   },
 
   async toolupload() {
@@ -618,15 +632,19 @@ const ACT = {
     a.download = `xmas-backup-${Date.now()}.json`; a.click();
   },
   async wipe() {
-    if (!confirm('本当にすべてのデータ（参加者・得点・画像・問題・設定）を消しますか？')) return;
+    if (!confirm('本当にすべてのデータ（参加者・得点・画像・問題リスト・ルール・設定）を消しますか？\n何も残りません。')) return;
     if (prompt('確認のため DELETE と入力してください') !== 'DELETE') return;
     await db.set('', null);
   },
   async wipeplay() {
-    if (!confirm('得点・回答・結果・チーム・ペア・ゲームを消します（参加者・画像・問題リスト・設定は残ります）')) return;
-    const up = { points: null, ctime: null, answers: null, results: null, questions: null, tools: null, spot: null, gift: null, teams: null, pairs: null, r4items: null, state: { phase: 'lobby' } };
+    if (!confirm('ゲームの記録（得点・回答・結果・チーム・ペア・ゲーム）を消します。\n参加者・画像・問題リスト・ルール・設定は残ります。')) return;
+    const up = { ...PLAY_DATA, state: { phase: 'lobby' }, 'meta/teamCounter': null };
     for (const k of uids()) { up[`users/${k}/team`] = null; up[`users/${k}/pair`] = null; up[`users/${k}/pairReq`] = null; }
     await db.update('', up);
+  },
+  async wipepeople() {
+    if (!confirm('参加者も含めて消します（全員ログイン画面に戻り、IDは 01 から振り直しになります）。\n画像・問題リスト・ルール・設定は残ります。')) return;
+    await db.update('', { ...PLAY_DATA, users: null, presence: null, state: { phase: 'lobby' }, 'meta/userCounter': null, 'meta/teamCounter': null });
   },
 };
 

@@ -91,6 +91,8 @@ const ring = (s, e) => `<div class="ring"><svg viewBox="0 0 64 64"><circle cx="3
 // ---------------- 描画 ----------------
 function render() {
   syncSubs();
+  // データが消されて同じIDが別の人に振られた場合は、この端末をログイン画面に戻す
+  if (me && U() && !MOCK && U().uid && U().uid !== auth.uid()) { store.removeItem('xmas_me'); me = null; }
   stage.classList.toggle('entry', !me || !U());
   if (!me || !U()) { patch(app, viewEntry()); tick(); return; }
   const st = S.state, ph = st.phase;
