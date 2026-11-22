@@ -34,7 +34,7 @@ const step = (n, title, desc, actions, st = '') => `<div class="step ${st}"><div
   <div><div class="st">${title}</div>${desc ? `<div class="sd">${desc}</div>` : ''}</div><div class="sa">${actions}</div></div>`;
 const box = (title, inner, extra = '') => `<div class="box"><h4>${title}${extra}</h4>${inner}</div>`;
 const kpi = (k, v) => `<div class="kpi"><div class="k">${k}</div><div class="v">${v}</div></div>`;
-const PHASE_JA = { lobby: '待機（ID表示）', team: 'チーム作り', pair: 'ペア作り', quiz: '問題', tools: '道具選び', spot: '間違い探し', gift: 'プレゼントツリー', end: '終了' };
+const PHASE_JA = { timer: 'タイマー', lobby: '待機（ID表示）', team: 'チーム作り', pair: 'ペア作り', quiz: '問題', tools: '道具選び', spot: '間違い探し', gift: 'プレゼントツリー', end: '終了' };
 const playerURL = () => location.href.replace(/admin\.html.*$/, '');
 
 const PAGES = [
@@ -45,7 +45,7 @@ const PAGES = [
 ];
 function livePage() {
   const st = S.state || {}, q = S.questions?.[st.qid];
-  return { lobby: 'lobby', team: 'team', pair: 'pair', tools: 'tools', spot: 'spot', gift: 'gift', end: 'final', quiz: q?.round === 4 ? 'r4' : 'r1' }[st.phase];
+  return { timer: 'timer', lobby: 'lobby', team: 'team', pair: 'pair', tools: 'tools', spot: 'spot', gift: 'gift', end: 'final', quiz: q?.round === 4 ? 'r4' : 'r1' }[st.phase];
 }
 
 // ---------- 描画 ----------
@@ -328,19 +328,15 @@ function breakdown(k) {
 // ===== ツール：タイマー =====
 const tRemain = tm => !tm ? 0 : tm.running ? Math.max(0, tm.endAt - db.now()) : (tm.remain || 0);
 function pgTimer() {
-  const tm = S.timer || {}, url = playerURL() + 'timer.html';
-  return head('タイマー', '参加者やスクリーンに見せるタイマーです。タイマーページ（下のURL）を開くと大きく表示されます。チェックを入れると参加者のスマホの上部にも表示されます。')
-    + box('タイマーの設定', `<div class="rowf"><label>表示名 <input id="tm_label" value="${esc(tm.label || '')}" placeholder="例：話し合いタイム" style="width:14em" data-keep></label>
-        <label><input id="tm_min" class="s" type="number" min="0" value="${Math.floor((tm.dur || 300000) / 60000)}" data-keep> 分</label>
-        <label><input id="tm_sec" class="s" type="number" min="0" max="59" value="${Math.round(((tm.dur || 300000) % 60000) / 1000)}" data-keep> 秒</label>
-        ${[1, 3, 5, 10].map(m => b('tmpreset', `${m}分`, `data-m="${m}"`)).join('')}</div>
-      <div class="rowf" style="margin-top:12px">${b('tmstart', '▶ この時間でスタート', '', 'main big')}
-        ${tm.dur ? (tm.running ? b('tmpause', '⏸ 一時停止') : tRemain(tm) > 0 ? b('tmresume', '▶ 再開') : '') : ''}
-        ${tm.dur ? b('tmadd', '＋30秒', 'data-s="30"') + b('tmadd', '−30秒', 'data-s="-30"') + b('tmreset', 'リセット（非表示）', '', 'warn') : ''}</div>
-      <div class="rowf" style="margin-top:12px"><label class="chk"><input type="checkbox" id="tm_phones" ${tm.phones ? 'checked' : ''}> 参加者のスマホにも表示する</label></div>`)
-    + box('いまのタイマー', `<div class="rowf" style="gap:30px"><div class="kpi" style="min-width:220px"><div class="k">${esc(tm.label || 'タイマー')}${tm.dur ? (tm.running ? '（動作中）' : '（停止中）') : '（未設定）'}</div><div class="v" style="font-size:54px" data-tmr="1"></div></div>
-      <div><img class="qr" alt="QR" src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=8&data=${encodeURIComponent(url)}"></div>
-      <div style="flex:1;min-width:220px"><div class="hint">タイマーページ</div><div class="url">${esc(url)}</div><p class="hint">プロジェクターで映すか、参加者に開いてもらってください。</p></div></div>`);
+  const tm = S.timer || {}, live = S.state?.phase === 'timer', remain = tRemain(tm);
+  const dur = tm.dur || 300000;
+  return head('タイマー', '他のゲームと同じく、押したときに全員のスマホにタイマーが大きく表示されます。終わったら、次のステージのページで画面を切り替えてください。')
+    + `<div class="steps">
+      ${step(1, '時間を決める', `<span class="rowf" style="margin-top:6px"><input id="tm_min" class="s" type="number" min="0" value="${Math.floor(dur / 60000)}" data-keep> 分
+        <input id="tm_sec" class="s" type="number" min="0" max="59" value="${Math.round((dur % 60000) / 1000)}" data-keep> 秒　${[1, 3, 5, 10].map(m => b('tmpreset', `${m}分`, `data-m="${m}"`)).join(' ')}</span>`, '')}
+      ${step(2, 'みんなの画面にタイマーを表示してスタート', live ? (tm.running ? '🟢 表示中・動作中' : remain > 0 ? '⏸ 一時停止中' : '⏰ 時間切れ') : '参加者の画面がタイマーに切り替わります。', b('tmstart', '▶ 表示してスタート', '', 'main big'), live ? 'done' : 'now')}
+      ${step(3, '操作', '', live && tm.dur ? (tm.running ? b('tmpause', '⏸ 一時停止') : remain > 0 ? b('tmresume', '▶ 再開') : '') + b('tmadd', '＋30秒', 'data-s="30"') + b('tmadd', '−30秒', 'data-s="-30"') : '<span class="muted">スタート後に使えます</span>', live ? 'now' : '')}</div>`
+    + box('いまのタイマー', `<div class="kpi" style="display:inline-block;min-width:240px"><div class="k">${live ? '参加者に表示中' : '表示していません'}</div><div class="v" style="font-size:56px" data-tmr="1"></div></div>`);
 }
 
 // ===== 管理：参加者 =====
@@ -541,12 +537,12 @@ const ACT = {
   tmpreset: el => { const m = document.getElementById('tm_min'), s2 = document.getElementById('tm_sec'); if (m) m.value = el.dataset.m; if (s2) s2.value = 0; },
   async tmstart() {
     const dur = ((+val('tm_min') || 0) * 60 + (+val('tm_sec') || 0)) * 1000; if (!(dur > 0)) return alert('時間を入れてください');
-    await db.update('timer', { label: val('tm_label') || null, dur, running: true, endAt: db.now() + dur, remain: dur });
+    await db.set('timer', { dur, running: true, endAt: db.now() + dur, remain: dur });
+    await setState({ phase: 'timer', result: null });
   },
   tmpause: () => db.update('timer', { running: false, remain: tRemain(S.timer) }),
   tmresume: () => db.update('timer', { running: true, endAt: db.now() + (S.timer?.remain || 0) }),
   tmadd: el => { const tm = S.timer || {}, d = +el.dataset.s * 1000; return tm.running ? db.update('timer', { endAt: Math.max(db.now(), tm.endAt + d) }) : db.update('timer', { remain: Math.max(0, (tm.remain || 0) + d) }); },
-  tmreset: () => db.update('timer', { running: false, dur: null, remain: 0, endAt: null }),
   async manualpt() {
     const k = ukey(val('mp_id')), n = Math.round(+val('mp_pt'));
     if (!k || !users()[k] || !n) return alert('IDか点数が正しくありません');
@@ -597,7 +593,6 @@ app.addEventListener('click', e => {
 });
 app.addEventListener('change', e => {
   if (e.target.id === 'spotteam') { L.spotTeam = e.target.value; render(); }
-  if (e.target.id === 'tm_phones') db.update('timer', { phones: e.target.checked });
 });
 
 function tick() {

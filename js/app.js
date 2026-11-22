@@ -59,14 +59,10 @@ function top() {
   if (ph === 'gift' && u.pair) nm = `<span>${esc(u.name)}<span class="vs">vs</span>${esc(name(partnerOf(u.pair)))}</span>`;
   else if (u.team && ['tools', 'spot', 'team'].includes(ph)) nm += `<span class="tag">TEAM ${esc(sid(u.team))}</span>`;
   return `<div class="top"><div class="idc" title="${t('yourId')}"><small>ID</small>${esc(sid(me))}</div><div class="nm">${nm}</div>
-    <div class="sc"><small>SCORE</small><b>${fmtN(total())}</b></div></div><div class="divider"></div>${langBar()}${phoneTimer()}`;
+    <div class="sc"><small>SCORE</small><b>${fmtN(total())}</b></div></div><div class="divider"></div>${langBar()}`;
 }
 const langBar = () => `<div class="langs">${LANGS.map(([k, l]) => `<button class="${lang === k ? 'on' : ''}" data-act="lang" data-l="${k}">${l}</button>`).join('')}</div>`;
 function timerRemain(tm) { return !tm ? 0 : tm.running ? Math.max(0, tm.endAt - db.now()) : (tm.remain || 0); }
-function phoneTimer() {
-  const tm = S.timer; if (!tm || !tm.phones || !tm.dur) return '';
-  return `<div class="ptimer ${tm.running ? '' : 'paused'}"><span>${ICON.clock}${esc(tm.label || t('timerLabel'))}</span><b data-tm="1"></b></div>`;
-}
 // 分単位の締め切り表示（残り mm:ss ＋ バー）
 const cdBar = (s, e) => `<div class="cd"><div class="cdt"><span>${ICON.clock}${t('remain')}</span><b data-mmss="${e}"></b></div><div class="cdbar"><i data-s="${s}" data-e="${e}"></i></div></div>`;
 const rulesCard = (key, v) => {
@@ -98,6 +94,7 @@ function render() {
   else if (ph === 'gift') body = viewGift();
   else if (ph === 'team') body = viewTeam();
   else if (ph === 'pair') body = viewPair();
+  else if (ph === 'timer') body = viewTimer();
   else body = viewHome();
   patch(app, top() + body + (L.err ? `<div class="err">${esc(L.err)}</div>` : ''));
   if (ph === 'spot') drawMarks();
@@ -114,7 +111,7 @@ function viewEntry() {
     <div class="bottom"><button class="btn" data-act="reg">Entry<small>${t('entrySub')}</small></button>
       <details><summary class="link">${t('relogin')}</summary>
         <div class="relogin"><input id="reid" inputmode="numeric" placeholder="ID"><button data-act="relogin">OK</button></div></details>
-      ${MOCK ? `<div class="link" style="cursor:default">${t('mock')}</div>` : ''}</div>`;
+    </div>`;
 }
 
 function viewHome() {
@@ -125,6 +122,17 @@ function viewHome() {
     + (chips ? `<div class="chips">${chips}</div>` : '')
     + (end ? '' : `<div style="margin-top:16px">${rulesCard('lobby')}</div>`)
     + bottom(waiting(end ? 'MERRY CHRISTMAS' : 'WAITING FOR NEXT', end ? '' : t('waitNext')));
+}
+
+// ---- タイマー（管理者が出したときに全員に表示） ----
+function viewTimer() {
+  const tm = S.timer || {}, has = !!tm.dur, remain = timerRemain(tm);
+  const st = !has ? 'idle' : remain <= 0 ? 'end' : tm.running ? 'run' : 'pause';
+  return `<div class="bigtimer ${st}"><div class="tring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="none" stroke="rgba(255,255,255,.16)" stroke-width=".7"/>
+      <circle class="tarc" cx="50" cy="50" r="46" fill="none" stroke="#e3cc95" stroke-width="1.3" stroke-linecap="round" stroke-dasharray="289"/>
+      <circle cx="50" cy="50" r="41.5" fill="none" stroke="rgba(201,169,106,.35)" stroke-width=".35"/></svg>
+    <div class="tin"><div class="tnum">${st === 'end' ? 'Time up!' : `<span data-tm="1"></span>`}</div>
+      <div class="tst">${st === 'end' ? t('timeUpBig') : st === 'pause' ? t('paused') : 'REMAINING'}</div></div></div></div>` + bottom('');
 }
 
 // ---- 問題（選択肢は A〜D / ○× だけを表示） ----
@@ -455,6 +463,7 @@ function tick() {
   for (const el of document.querySelectorAll('[data-mmss]')) el.textContent = mmss(+el.dataset.mmss - now);
   for (const el of document.querySelectorAll('.cdbar i')) { const s1 = +el.dataset.s, e1 = +el.dataset.e; el.style.width = Math.max(0, Math.min(100, (e1 - now) / (e1 - s1) * 100)) + '%'; }
   for (const el of document.querySelectorAll('[data-tm]')) el.textContent = mmss(timerRemain(S.timer));
+  for (const el of document.querySelectorAll('.tarc')) { const tm = S.timer || {}; const r = tm.dur ? Math.max(0, Math.min(1, timerRemain(tm) / tm.dur)) : 0; el.style.strokeDashoffset = (289 * (1 - r)).toFixed(1); }
   for (const el of document.querySelectorAll('.rg[data-e]')) {
     const s = +el.dataset.s, e = +el.dataset.e, r = Math.max(0, Math.min(1, (e - now) / (e - s)));
     el.style.strokeDashoffset = (182.2 * (1 - r)).toFixed(1);

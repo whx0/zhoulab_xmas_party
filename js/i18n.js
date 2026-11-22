@@ -19,7 +19,7 @@ const T = {
   timeUp: { ja: '時間切れです', en: 'Time is up', zh: '时间到' },
   yourId: { ja: 'あなたのID', en: 'Your ID', zh: '你的ID' },
   // ---- エントリー ----
-  entryJp: { ja: '研究室クリスマスパーティー', en: 'Lab Christmas Party', zh: '实验室圣诞派对' },
+  entryJp: { ja: '周研クリスマスパーティー', en: 'Zhou Lab Christmas Party', zh: '周研圣诞派对' },
   nickPh: { ja: 'ニックネーム', en: 'Your name', zh: '昵称' },
   entrySub: { ja: '参加する', en: 'Join', zh: '参加' },
   relogin: { ja: 'ID で復帰する', en: 'Re-login with your ID', zh: '用ID重新登录' },
@@ -81,6 +81,8 @@ const T = {
   yourPoints: { ja: '獲得ポイント', en: 'Your points', zh: '获得分数' },
   // ---- タイマー ----
   timerLabel: { ja: 'タイマー', en: 'Timer', zh: '计时器' },
+  timeUpBig: { ja: '時間です', en: 'Time is up', zh: '时间到' },
+  paused: { ja: '一時停止中', en: 'Paused', zh: '已暂停' },
 };
 
 // ステージごとのルール
