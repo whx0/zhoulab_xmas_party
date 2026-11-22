@@ -1,12 +1,13 @@
-// Firebase コンソール →「プロジェクトの設定」→「マイアプリ（ウェブ）」の設定をここに貼る。
-// apiKey が空のままだと「ローカルお試しモード」（同じPCの複数タブだけで動く）になる。
+// Firebase の設定（ウェブ用の apiKey は公開前提の値なので、リポジトリに入れて問題ありません。守りは database.rules.json で行います）
 export const FIREBASE_CONFIG = {
-  apiKey: "",
-  authDomain: "",
-  databaseURL: "",   // 例: https://xxxx-default-rtdb.asia-southeast1.firebasedatabase.app
-  projectId: "",
-  appId: "",
+  apiKey: "AIzaSyBW_FXVwbgXxlCiHwxiiJwDTyt9cjOitQc",
+  authDomain: "zhoulab-xmas-party.firebaseapp.com",
+  databaseURL: "https://zhoulab-xmas-party-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "zhoulab-xmas-party",
+  storageBucket: "zhoulab-xmas-party.firebasestorage.app",
+  messagingSenderId: "87340203650",
+  appId: "1:87340203650:web:f50802ffacf94945f13e9b",
 };
 
-// 管理者として使う Google アカウントのメールアドレス（database.rules.json にも同じものを書く）
-export const ADMIN_EMAILS = [];
+// 管理者として使う Google アカウント（追加するときは database.rules.json も作り直す：python3 tools/make_rules.py a@x.com b@y.com）
+export const ADMIN_EMAILS = ["whx121340@gmail.com"];

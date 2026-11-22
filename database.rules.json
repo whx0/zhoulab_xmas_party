@@ -1,7 +1,7 @@
 {
   "rules": {
-    ".read": "(auth != null && auth.token.email_verified == true && (auth.token.email.toLowerCase() == 'ADMIN_EMAIL@example.com'))",
-    ".write": "(auth != null && auth.token.email_verified == true && (auth.token.email.toLowerCase() == 'ADMIN_EMAIL@example.com'))",
+    ".read": "(auth != null && auth.token.email_verified == true && (auth.token.email.toLowerCase() == 'whx121340@gmail.com'))",
+    ".write": "(auth != null && auth.token.email_verified == true && (auth.token.email.toLowerCase() == 'whx121340@gmail.com'))",
     "state": {
       ".read": "auth != null"
     },
