@@ -6,7 +6,7 @@ const T = {
   stageSolo: { ja: '個人戦', en: 'Solo Round', zh: '个人赛' },
   stageNasa: { ja: 'チーム戦・NASAゲーム', en: 'Team · NASA Game', zh: '团队赛 · NASA游戏' },
   stageSpot: { ja: 'チーム戦・間違い探し', en: 'Team · Spot the Difference', zh: '团队赛 · 找不同' },
-  stageGift: { ja: 'ペア戦・プレゼントツリー', en: 'Pair · Present Tree', zh: '双人赛 · 礼物树' },
+
   stageFinal: { ja: '一発逆転', en: 'Final Round', zh: '最终逆转' },
   stagePractice: { ja: '練習問題', en: 'Practice', zh: '练习题' },
   rules: { ja: 'ルール', en: 'Rules', zh: '规则' },
@@ -55,6 +55,7 @@ const T = {
   partnerId: { ja: '相手のID', en: 'Partner’s ID', zh: '对方的ID' },
   waitPartner: { ja: 'ID {id}（{name}）の入力を待っています…', en: 'Waiting for ID {id} ({name}) to enter your ID…', zh: '正在等待 ID {id}（{name}）输入你的ID…' },
   paired: { ja: 'ペア成立', en: 'Paired!', zh: '配对成功' },
+  pairedBig: { ja: 'ペア成立！', en: 'You are paired!', zh: '配对成功！' },
   pairedWait: { ja: 'ペア成立！次のゲームが始まるまでお待ちください', en: 'Paired! Please wait for the next game', zh: '配对成功！请等待下一个游戏开始' },
   redoPair: { ja: 'ペアをやり直す', en: 'Change partner', zh: '重新配对' },
   redoConfirm: { ja: 'ペアを解除して、やり直しますか？（相手のペアも解除されます）', en: 'Cancel this pair and choose again? (Your partner will be unpaired too)', zh: '要解除配对重新选择吗？（对方的配对也会解除）' },
@@ -70,17 +71,21 @@ const T = {
   subSpotMember: { ja: '見つけたらリーダーに伝えよう', en: 'Found one? Tell your leader', zh: '找到了就告诉队长' },
   maxMark: { ja: 'これ以上つけられません', en: 'No more marks allowed', zh: '不能再画圈了' },
   // ---- プレゼント ----
-  subGift: { ja: 'ハズレ（💣）を避けて、数字の分だけポイント', en: 'Avoid the 💣 and earn the number as points', zh: '避开💣，按数字得分' },
+  subGift: { ja: '爆弾をよけて、数字のぶんだけポイントになる', en: 'Avoid the bomb — the number becomes your points', zh: '避开炸弹，数字就是你的得分' },
   noPartner: { ja: 'ペアがいません。幹事に伝えてください', en: 'No partner. Please tell the host', zh: '没有搭档，请告诉主持人' },
   yourTurn: { ja: 'あなたの番', en: 'Your turn', zh: '轮到你了' },
   wait: { ja: '相手の番', en: 'Partner’s turn', zh: '对方的回合' },
-  doHide: { ja: '💣を入れるプレゼントを選ぶ', en: 'Choose a gift to hide the 💣', zh: '选择要放💣的礼物' },
-  doOpen: { ja: '開けるプレゼントを選ぶ', en: 'Choose a gift to open', zh: '选择要打开的礼物' },
-  waitHide: { ja: '相手が💣を入れています', en: 'Your partner is hiding the 💣', zh: '对方正在放💣' },
-  waitOpen: { ja: '相手が選んでいます', en: 'Your partner is choosing', zh: '对方正在选择' },
-  lastBomb: { ja: '前のターン：{n} は 💣！', en: 'Last turn: {n} was the 💣!', zh: '上一回合：{n} 是💣！' },
-  lastSafe: { ja: '前のターン：{n} を開けた（💣は {b}）', en: 'Last turn: opened {n} (💣 was {b})', zh: '上一回合：打开了 {n}（💣在 {b}）' },
-  hideSub: { ja: 'このプレゼントに💣を入れる', en: 'Hide the 💣 here', zh: '把💣放在这里' },
+  roleHide: { ja: '爆弾をうめる', en: 'Hide the bomb', zh: '埋炸弹' },
+  roleOpen: { ja: 'プレゼントを開ける', en: 'Open a present', zh: '打开礼物' },
+  doHide: { ja: '相手に開けさせたいプレゼントを1つ選んで、爆弾をうめよう', en: 'Pick one present to hide the bomb in', zh: '选一个礼物把炸弹埋进去' },
+  doOpen: { ja: '爆弾が入っていないと思うプレゼントを1つ開けよう', en: 'Open one present you think is safe', zh: '打开一个你认为安全的礼物' },
+  waitHide: { ja: '相手が爆弾をうめています…', en: 'Your partner is hiding the bomb…', zh: '对方正在埋炸弹…' },
+  waitOpen: { ja: '相手がプレゼントを選んでいます…', en: 'Your partner is choosing a present…', zh: '对方正在选择礼物…' },
+  tagHide: { ja: 'うめる番', en: 'Hiding', zh: '埋炸弹' },
+  tagOpen: { ja: '開ける番', en: 'Opening', zh: '开礼物' },
+  lastBomb: { ja: '前のターン：{n} は爆弾でした！', en: 'Last turn: {n} was the bomb!', zh: '上一回合：{n} 是炸弹！' },
+  lastSafe: { ja: '前のターン：{n} を開けて成功（爆弾は {b}）', en: 'Last turn: {n} was safe (bomb was in {b})', zh: '上一回合：打开 {n} 安全（炸弹在 {b}）' },
+  hideSub: { ja: 'このプレゼントに爆弾をうめる', en: 'Hide the bomb here', zh: '把炸弹埋在这里' },
   openSub: { ja: 'このプレゼントを開ける', en: 'Open this gift', zh: '打开这个礼物' },
   yourPoints: { ja: '獲得ポイント', en: 'Your points', zh: '获得分数' },
   // ---- タイマー ----
@@ -127,7 +132,7 @@ const R = {
     zh: ['互相输入对方的ID即可配对。', '搭档到最后都不会改变。'],
   },
   gift: {
-    ja: ['1〜10のプレゼントのどれか1つに💣が入っています。', '交代で、片方が💣を入れ、もう片方が1つ開けます。安全なら数字の分だけ得点、💣なら自分の得点が0に戻ります（ゲームは続きます）。', '最後の2つでは、選ばれなかった方は💣を入れた側のものになります。1手{sec}秒、時間切れはランダムで進みます。'],
+    ja: ['1〜10のプレゼントのどれか1つに爆弾がうまっています。', '交代で、片方が爆弾をうめ、もう片方が1つ開けます。安全なら数字のぶんだけポイントになり、爆弾なら自分のポイントが0に戻ります（ゲームは続きます）。', '最後の2つでは、選ばれなかった方は爆弾をうめた側のものになります。1手{sec}秒、時間切れはランダムで進みます。'],
     en: ['One of the gifts 1–10 hides a 💣.', 'Take turns: one hides the 💣, the other opens a gift. Safe = you earn that number; 💣 = your score resets to 0 (the game goes on).', 'With 2 gifts left, the one not chosen goes to the player who hid the 💣. {sec}s per move; time-outs are random.'],
     zh: ['1〜10号礼物中有一个藏着💣。', '轮流进行：一方放💣，另一方打开一个礼物。安全则获得该数字的分数，开到💣则自己的分数归零（游戏继续）。', '剩下2个时，没被选中的那个归放💣的一方。每步{sec}秒，超时将随机进行。'],
   },
@@ -138,7 +143,9 @@ const R = {
   },
 };
 
-export const RULE_KEYS = [['lobby', '受付・待機'], ['practice', '練習問題'], ['solo', '個人戦'], ['team', 'チーム作り'], ['nasa', 'チーム戦・NASAゲーム'], ['spot', 'チーム戦・間違い探し'], ['pair', 'ペア作り'], ['gift', 'プレゼントツリー'], ['final', '一発逆転']];
+export const RULE_KEYS = [['lobby', '受付・待機'], ['practice', '練習問題'], ['solo', '個人戦'], ['team', 'チーム作り'], ['nasa', 'チーム戦・NASAゲーム'], ['spot', 'チーム戦・間違い探し'], ['pair', 'ペア作り'], ['gift', 'プレゼントゲーム（R3）'], ['final', '一発逆転']];
+// 見出しの初期値（管理画面で変更できる）
+export const TITLE_DEFAULT = { practice: 'Question No.{no}', solo: 'Question No.{no}', team: 'Make a Team', pair: 'Find a Partner', nasa: 'Survival Kit', spot: 'Find the Difference', gift: 'Present Game', final: 'All or Nothing' };
 export const RULES_DEFAULT = R;
 const fill = (s, v) => s.replace(/\{(\w+)\}/g, (_, k) => v?.[k] ?? '');
 export const t = (lang, key, v) => fill(T[key]?.[lang] ?? T[key]?.ja ?? key, v);

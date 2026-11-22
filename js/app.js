@@ -2,7 +2,7 @@
 import { db, TS, MOCK, auth } from './db.js';
 import { CFG_DEFAULT, toArr, sum, other, remaining, ranking, giftSet, giftPick, giftAuto } from './logic.js';
 import { esc, patch, fmtSec, fmtN, sid, ukey, tkey, ICON, wreathHTML, ornamentHTML, BG_HTML } from './ui.js';
-import { LANGS, t as tr, rules as rl } from './i18n.js';
+import { LANGS, TITLE_DEFAULT, t as tr, rules as rl } from './i18n.js';
 
 const stage = document.querySelector('.stage');
 stage.insertAdjacentHTML('afterbegin', BG_HTML);
@@ -71,6 +71,13 @@ const rulesCard = (key, v) => {
   return `<div class="rules ${open ? 'open' : ''}"><button class="rh" data-act="rules" data-k="${key}">${ICON.star}<span>${t('rules')}</span><i>${open ? '−' : '+'}</i></button>
     ${open ? `<ol>${rl(lang, key, v, S.rules).map(x => `<li>${esc(x)}</li>`).join('')}</ol>` : ''}</div>`;
 };
+// 見出し（管理画面で変更できる。最後の単語を斜体に）
+function title(key, vars = {}) {
+  const raw = String(S.rules?.[key]?.title || TITLE_DEFAULT[key] || '').replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
+  const w = esc(raw).split(' ').filter(Boolean);
+  return w.length > 1 ? w.slice(0, -1).join(' ') + ' <em>' + w[w.length - 1] + '</em>' : (w[0] || '');
+}
+function subOf(key, def) { const o = S.rules?.[key] || {}; const v = o['sub_' + lang] || o.sub_ja; return v ? esc(v) : def; }
 const hd = (eyebrow, title, sub = '') => `<div class="hd"><div class="eyebrow">${eyebrow}</div><div class="title">${title}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div>`;
 const waiting = (en, jp = '') => `<div class="waiting"><div class="dm"><i></i><i></i><i></i></div><div class="en">${en}</div>${jp ? `<div class="jp">${jp}</div>` : ''}</div>`;
 const testLink = () => testOn() ? `<button class="link" data-act="logout">${ICON.logout}${t('logout')}</button>` : '';
@@ -143,9 +150,9 @@ function choiceEl(q, c, on, small = false) {
 }
 const qRule = q => q.round === 4 ? 'final' : q.round === 0 ? 'practice' : 'solo';
 function qHead(q) {
-  if (q.round === 4) return hd(t('stageFinal'), 'All <em>or</em> Nothing', t('subFinal'));
-  if (q.round === 0) return hd(t('stagePractice'), `Question <em>No.${q.no ?? ''}</em>`, t('subPractice'));
-  return hd(t('stageSolo'), `Question <em>No.${q.no ?? ''}</em>`, t('subSolo'));
+  if (q.round === 4) return hd(t('stageFinal'), title('final'), subOf('final', t('subFinal')));
+  if (q.round === 0) return hd(t('stagePractice'), title('practice', { no: q.no ?? '' }), subOf('practice', t('subPractice')));
+  return hd(t('stageSolo'), title('solo', { no: q.no ?? '' }), subOf('solo', t('subSolo')));
 }
 function viewQuestion() {
   const q = S.question, a = S.myAnswer, st = S.state;
@@ -202,7 +209,7 @@ function viewResult() {
 // ---- チーム ----
 function viewTeam() {
   const u = U(), t0 = u.team && S.teams[u.team];
-  const h = hd('Team', 'Make a <em>Team</em>', t('subTeam'));
+  const h = hd('Team', title('team'), subOf('team', t('subTeam')));
   const rc = `<div style="margin-top:14px">${rulesCard('team', { n: S.cfg.teamSize })}</div>`;
   if (!t0) return h + `<div class="card lined"><button class="btn light" data-act="mkteam" style="margin-top:4px">Create<small>${t('createSub')}</small></button>
       <div class="or">or</div><div class="lbl">Join · ${t('joinTeam')}</div>
@@ -216,13 +223,13 @@ function viewTeam() {
 
 // ---- ペア ----
 function viewPair() {
-  const u = U(), h = hd('Pair', 'Find a <em>Partner</em>', t('subPair'));
+  const u = U(), h = hd('Pair', title('pair'), subOf('pair', t('subPair')));
   const rc = `<div style="margin-top:14px">${rulesCard('pair')}</div>`;
   if (u.pair) {
     const p = partnerOf(u.pair);
-    return h + wreathHTML(`<div class="lbl">YOUR PARTNER</div><div class="big xl" style="font-size:80px">${esc(sid(p))}</div><div style="letter-spacing:.1em">${esc(name(p))}</div>`, { size: 200 })
-      + `<div class="chips"><span class="chip">${ICON.check}${t('paired')}</span></div>`
-      + bottom(waiting('PAIRED', t('pairedWait')) + `<button class="btn light" data-act="unpair" style="margin-top:14px">Redo<small>${t('redoPair')}</small></button>`);
+    return `<div class="paired"><div class="okmark">${ICON.check}</div><div class="title">Paired<em>!</em></div><div class="pok">${t('pairedBig')}</div></div>`
+      + wreathHTML(`<div class="lbl">YOUR PARTNER</div><div class="big xl" style="font-size:80px">${esc(sid(p))}</div><div style="letter-spacing:.1em">${esc(name(p))}</div>`, { size: 190, bow: false })
+      + bottom(waiting('PLEASE WAIT', t('pairedWait')) + `<button class="btn light" data-act="unpair" style="margin-top:14px">Redo<small>${t('redoPair')}</small></button>`);
   }
   return h + `<div class="card lined"><div class="lbl">${t('partnerId')}</div>
     <div class="inline"><div class="field">${ICON.link}<input id="pid" inputmode="numeric" placeholder="ID"></div><button class="btn" data-act="pair">OK</button></div>
@@ -235,7 +242,7 @@ function viewTools() {
   const leader = u.team && S.teams[u.team]?.leader === me;
   const open = st.toolOpen && db.now() < (st.toolEndAt || 0);
   const solo = st.toolStep !== 'team';
-  let h = hd(t('stageNasa'), 'Survival <em>Kit</em>', solo ? t('subNasaSolo', { n: N }) : leader ? t('subNasaLeader', { n: N }) : t('subNasaMember'));
+  let h = hd(t('stageNasa'), title('nasa'), S.rules?.nasa?.sub_ja ? subOf('nasa', '') : solo ? t('subNasaSolo', { n: N }) : leader ? t('subNasaLeader', { n: N }) : t('subNasaMember'));
   if (!assets.length) return h + bottom(waiting('LOADING'));
   if (open) h += cdBar(st.toolStartAt || st.toolEndAt - 60000, st.toolEndAt);
   let mode, picks;
@@ -260,7 +267,7 @@ function viewSpot() {
   const st = S.state, u = U(), a = S.spotAsset;
   const leader = u.team && S.teams[u.team]?.leader === me;
   const open = st.spotOpen && db.now() < (st.spotEndAt || 0);
-  const h = hd(t('stageSpot'), 'Find the <em>Difference</em>', leader ? t('subSpotLeader') : t('subSpotMember'));
+  const h = hd(t('stageSpot'), title('spot'), S.rules?.spot?.sub_ja ? subOf('spot', '') : leader ? t('subSpotLeader') : t('subSpotMember'));
   if (!a) return h + bottom(waiting('LOADING'));
   return h + (open ? cdBar(st.spotStartAt || st.spotEndAt - 60000, st.spotEndAt) : `<div class="done"><span class="stamp">${ICON.clock}TIME UP</span></div>`)
     + `<div class="zooms">${[1, 2, 3].map(z => `<button class="${L.zoom === z ? 'on' : ''}" data-act="zoom" data-z="${z}">×${z}</button>`).join('')}<span class="cnt" id="spotcnt"></span></div>
@@ -291,7 +298,7 @@ async function spotTap(el, e) {
 // ---- R3 プレゼントツリー ----
 function viewGift() {
   const g = S.gift, u = U(), n = S.state.giftGame;
-  let h = hd(`${t('stageGift')} · Game ${n || ''}`, 'Present <em>Tree</em>', t('subGift'));
+  let h = hd(`Game ${n || ''}`, title('gift'), subOf('gift', t('subGift')));
   if (!u.pair) return h + bottom(waiting('NO PARTNER', t('noPartner')));
   if (!g) return h + bottom(waiting('READY'));
   const side = g.a === me ? 'a' : 'b';
@@ -300,7 +307,10 @@ function viewGift() {
   const iSet = g.phase === 'set' && g.setter === side, iPick = g.phase === 'pick' && g.setter !== side, act = iSet || iPick;
   if (g.over) h += `<div class="finish"><div class="eyebrow">Finish</div><div class="p">+${fmtN((g.score?.[side] || 0) * S.cfg.giftMul)}</div><div class="lbl" style="color:var(--gold2)">${t('yourPoints')}</div></div>`;
   else {
-    h += `<div class="turnline ${act ? 'me' : ''}"><b>${act ? t('yourTurn') : t('wait')}</b><span>${act ? (iSet ? t('doHide') : t('doOpen')) : (g.phase === 'set' ? t('waitHide') : t('waitOpen'))}</span></div>`;
+    const kind = act ? (iSet ? 'hide' : 'open') : 'wait';
+    h += `<div class="role ${kind}"><div class="ric">${kind === 'hide' ? ICON.bomb : kind === 'open' ? ICON.gift : ICON.clock}</div>
+      <div class="rtx"><div class="rwho">${act ? t('yourTurn') : t('wait')}</div><div class="rwhat">${act ? (iSet ? t('roleHide') : t('roleOpen')) : (g.phase === 'set' ? t('roleHide') : t('roleOpen'))}</div>
+      <div class="rdesc">${act ? (iSet ? t('doHide') : t('doOpen')) : (g.phase === 'set' ? t('waitHide') : t('waitOpen'))}</div></div></div>`;
     if (g.deadline) h += cdBar(g.deadline - S.cfg.giftTurnSec * 1000, g.deadline);
     if (g.lastPick) h += `<div class="lastline">${g.lastPick === g.lastPos ? t('lastBomb', { n: g.lastPick }) : t('lastSafe', { n: g.lastPick, b: g.lastPos })}</div>`;
   }
@@ -309,16 +319,17 @@ function viewGift() {
     const cls = [!avail ? 'gone' : '', L.gsel === k ? 'on' : '', myBomb ? 'bomb' : ''].join(' ');
     return `<button class="gt ${cls}" ${act && avail ? `data-act="gnum" data-n="${k}"` : 'disabled'}>${myBomb ? ICON.bomb : avail ? ICON.gift : ICON.open}<span>${k}</span></button>`;
   };
-  h += `<div class="tree"><div class="star">✦</div>${[[1], [2, 3], [4, 5, 6], [7, 8, 9, 10]].map(r => `<div class="trow">${r.map(cell).join('')}</div>`).join('')}<div class="trunk"></div></div>`;
+  h += `<div class="tree"><div class="star">✦</div>${[[1], [2, 3], [4, 5, 6], [7, 8, 9, 10]].map(r => `<div class="trow">${r.map(cell).join('')}</div>`).join('')}</div>`;
   const log = toArr(g.log);
   h += `<div class="card ptable">${[side, other(side)].map(s => {
     const turn = !g.over && ((g.phase === 'set' && g.setter === s) || (g.phase === 'pick' && g.setter !== s));
-    return `<div class="pr"><span class="no">${esc(sid(g[s]))}</span><span>${esc(name(g[s]))}</span>${turn ? '<span class="turn">TURN</span>' : ''}
+    const role = g.over ? '' : g.setter === s ? `<span class="rt hide ${turn ? 'now' : ''}">${t('tagHide')}</span>` : `<span class="rt open ${turn ? 'now' : ''}">${t('tagOpen')}</span>`;
+    return `<div class="pr ${turn ? 'cur' : ''}"><span class="no">${esc(sid(g[s]))}</span><span>${esc(name(g[s]))}</span>${role}
       <span class="hist">${log.filter(e => e.side === s).map(e => `<i class="${e.bomb ? 'b' : ''}">${e.bomb ? '💣' : '+' + e.num}</i>`).join('')}</span>
       <span class="tot">${g.score?.[s] || 0}</span></div>`;
   }).join('')}</div>`;
   h += `<div style="margin-top:14px">${rulesCard('gift', { sec: S.cfg.giftTurnSec })}</div>`;
-  return h + bottom(act ? `<button class="btn" data-act="ggo" ${L.gsel ? '' : 'disabled'}>${iSet ? `Hide${L.gsel ? ' ' + L.gsel : ''}` : `Open${L.gsel ? ' ' + L.gsel : ''}`}<small>${iSet ? t('hideSub') : t('openSub')}</small></button>` : '');
+  return h + bottom(act ? `<button class="btn" data-act="ggo" ${L.gsel ? '' : 'disabled'}>${iSet ? `Hide${L.gsel ? ' · ' + L.gsel : ''}` : `Open${L.gsel ? ' · ' + L.gsel : ''}`}<small>${iSet ? t('hideSub') : t('openSub')}</small></button>` : '');
 }
 async function giftGo() {
   const g = S.gift, n = L.gsel; if (!g || !n) return;

@@ -252,6 +252,33 @@ input[type=range].slider::-moz-range-thumb { width: 14px; height: 14px; backgrou
 .finish { text-align: center; color: #fff; margin: 4px 0 12px; }
 .finish .p { font-family: var(--serif); font-size: 46px; color: var(--gold2); line-height: 1.1; }
 
+/* プレゼントゲーム：手番カード */
+.role { display: flex; align-items: center; gap: 14px; border-radius: 14px; padding: 14px 16px; margin: -4px 0 12px; }
+.role .ric { width: 52px; height: 52px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center; }
+.role .ric svg { width: 30px; height: 30px; }
+.role .rwho { font-family: var(--sans); font-size: 12px; font-weight: 700; letter-spacing: .3em; text-transform: uppercase; }
+.role .rwhat { font-family: var(--jp); font-size: 22px; font-weight: 700; line-height: 1.25; margin-top: 2px; }
+.role .rdesc { font-size: 12.5px; line-height: 1.55; margin-top: 3px; opacity: .9; }
+.role.hide { background: linear-gradient(135deg, #fff5f3, #fbe4e6); border: 2px solid #d2405e; color: #7a1f33; box-shadow: 0 10px 24px rgba(210, 64, 94, .3); animation: glow 1.6s ease-in-out infinite; }
+.role.hide .ric { background: #d2405e; color: #fff; }
+.role.open { background: linear-gradient(135deg, #fffaf0, #f6e9c9); border: 2px solid var(--gold); color: var(--navy); box-shadow: 0 10px 24px rgba(201, 169, 106, .4); animation: glow 1.6s ease-in-out infinite; }
+.role.open .ric { background: var(--navy); color: var(--gold2); }
+.role.wait { background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .3); color: #fff; }
+.role.wait .ric { border: 1px solid rgba(255, 255, 255, .5); color: var(--gold2); }
+.role.wait .rwhat { font-size: 17px; }
+@keyframes glow { 50% { transform: scale(1.015); } }
+.ptable .rt { font-size: 11px; font-weight: 700; letter-spacing: .05em; border-radius: 999px; padding: 1px 8px; border: 1px solid; opacity: .55; }
+.ptable .rt.hide { color: #d2405e; border-color: #e7b5c0; }
+.ptable .rt.open { color: #9a7a3a; border-color: #e3cc95; }
+.ptable .rt.now { opacity: 1; } .ptable .rt.hide.now { background: #d2405e; color: #fff; border-color: #d2405e; } .ptable .rt.open.now { background: var(--navy); color: var(--gold2); border-color: var(--navy); }
+.ptable .pr.cur { background: linear-gradient(90deg, rgba(201, 169, 106, .14), transparent); margin: 0 -14px; padding-left: 14px; padding-right: 14px; }
+/* ペア成立 */
+.paired { text-align: center; color: #fff; margin: 26px 0 8px; }
+.paired .okmark { width: 56px; height: 56px; margin: 0 auto 6px; border-radius: 50%; background: var(--gold); color: var(--deep); display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 6px rgba(227, 204, 149, .25); animation: pop .6s cubic-bezier(.3, 1.5, .5, 1); }
+.paired .okmark svg { width: 30px; height: 30px; stroke-width: 2.4; }
+.paired .title { font-size: 46px; }
+.paired .pok { font-family: var(--jp); font-size: 20px; font-weight: 700; letter-spacing: .15em; color: var(--gold2); margin-top: 4px; }
+
 /* チーム・ペア */
 .teambox { text-align: center; }
 .teambox .tno { font-family: var(--serif); font-size: 76px; line-height: 1; color: var(--navy); }
@@ -387,6 +414,7 @@ body.admin { background: #f3f2ee; min-height: 100vh; font-size: 14px; }
 .login p { color: var(--ink2); line-height: 1.7; }
 .rgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .rgrid label { display: flex; flex-direction: column; gap: 4px; }
+.rgrid input { width: 100%; }
 .rgrid textarea { width: 100%; resize: vertical; line-height: 1.6; font-family: var(--jp); }
 .chk { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
 .chk input { width: 18px; height: 18px; accent-color: var(--navy); }

@@ -3,7 +3,7 @@ import { db, TS, MOCK, auth } from './db.js';
 import { ADMIN_EMAILS } from './config.js';
 import { CFG_DEFAULT, ITEMS, toArr, sum, ranking, gradeNormal, gradeR4, rankPoints, toolScore, spotCount,
   other, remaining, giftNew, giftAuto } from './logic.js';
-import { RULE_KEYS, RULES_DEFAULT } from './i18n.js';
+import { RULE_KEYS, RULES_DEFAULT, TITLE_DEFAULT } from './i18n.js';
 import { esc, teamColor, CHOICE_COLORS, compressImage, patch, fmtSec, fmtN, sid, ukey, tkey } from './ui.js';
 
 const app = document.getElementById('app');
@@ -51,13 +51,13 @@ const step = (n, title, desc, actions, st = '') => `<div class="step ${st}"><div
   <div><div class="st">${title}</div>${desc ? `<div class="sd">${desc}</div>` : ''}</div><div class="sa">${actions}</div></div>`;
 const box = (title, inner, extra = '') => `<div class="box"><h4>${title}${extra}</h4>${inner}</div>`;
 const kpi = (k, v) => `<div class="kpi"><div class="k">${k}</div><div class="v">${v}</div></div>`;
-const PHASE_JA = { timer: 'タイマー', lobby: '待機（ID表示）', team: 'チーム作り', pair: 'ペア作り', quiz: '問題', tools: '道具選び', spot: '間違い探し', gift: 'プレゼントツリー', end: '終了' };
+const PHASE_JA = { timer: 'タイマー', lobby: '待機（ID表示）', team: 'チーム作り', pair: 'ペア作り', quiz: '問題', tools: '道具選び', spot: '間違い探し', gift: 'プレゼントゲーム', end: '終了' };
 const playerURL = () => location.href.replace(/admin\.html.*$/, '');
 
 const PAGES = [
-  ['grp', '準備'], ['q', '問題リスト'], ['mat', 'チーム戦の素材'], ['rules', 'ルール'], ['cfg', '配点・設定'],
+  ['grp', '準備'], ['q', '問題リスト'], ['mat', 'チーム戦の素材'], ['rules', '見出し・ルール'], ['cfg', '配点・設定'],
   ['grp', '本番（左から順に）'], ['lobby', '受付'], ['r1', '練習・個人戦'], ['team', 'チーム作り'], ['tools', 'チーム戦・NASAゲーム'], ['spot', 'チーム戦・間違い探し'],
-  ['pair', 'ペア作り'], ['gift', 'R3 プレゼントツリー'], ['r4', 'R4 一発逆転'], ['final', '結果発表'],
+  ['pair', 'ペア作り'], ['gift', 'R3 プレゼントゲーム'], ['r4', 'R4 一発逆転'], ['final', '結果発表'],
   ['grp', 'ツール'], ['timer', 'タイマー'], ['people', '参加者・チーム・ペア'], ['score', '得点の修正'],
 ];
 function livePage() {
@@ -132,10 +132,13 @@ function drawSpotAdmin() {
 function pgRules() {
   const cur = S.rules || {};
   const text = (k, l) => cur[k]?.[l] != null ? cur[k][l] : (RULES_DEFAULT[k]?.[l] || []).join('\n');
-  return head('ルール', '参加者のスマホの各ステージに表示されるルールです。1行が1項目になります。言語ごとに編集して「保存」を押してください。<br>'
+  return head('見出し・ルール', '参加者のスマホの各ステージに表示される「見出し（大きい英字）」「説明（その下の1行）」「ルール」です。空欄なら初期値が表示されます。ルールは1行が1項目です。<br>'
     + '<code>{n}</code> などは設定値に自動で置き換わります：チーム作り・NASAゲーム＝<code>{n}</code>（定員／選ぶ数）、個人戦＝<code>{max}</code> <code>{min}</code>（点数）、間違い探し＝<code>{cap}</code>（〇の上限）、プレゼントツリー＝<code>{sec}</code>（1手の秒数）。')
     + RULE_KEYS.map(([k, label]) => box(`${label}${cur[k] ? ' <span class="tb" style="background:var(--gold)">編集済み</span>' : ''}`,
-      `<div class="rgrid">${[['ja', '日本語'], ['en', 'English'], ['zh', '中文']].map(([l, ln]) => `<label><span class="hint">${ln}</span>
+      (k === 'lobby' ? '' : `<div class="rowf" style="margin-bottom:8px"><label>見出し <input id="rt_${k}" value="${esc(cur[k]?.title || '')}" placeholder="${esc(TITLE_DEFAULT[k] || '')}" style="width:16em" data-keep></label>
+        <span class="hint">英語がおすすめ（最後の単語が斜体になります）${k === 'solo' || k === 'practice' ? '。{no} は問題番号' : ''}</span></div>
+        <div class="rgrid" style="margin-bottom:10px">${[['ja', '説明（日本語）'], ['en', '説明（English）'], ['zh', '説明（中文）']].map(([l, ln]) => `<label><span class="hint">${ln}</span><input id="rs_${k}_${l}" value="${esc(cur[k]?.['sub_' + l] || '')}" placeholder="空欄＝初期値" data-keep></label>`).join('')}</div>`)
+      + `<div class="hint" style="margin-bottom:4px">ルール</div><div class="rgrid">${[['ja', '日本語'], ['en', 'English'], ['zh', '中文']].map(([l, ln]) => `<label><span class="hint">${ln}</span>
         <textarea id="rl_${k}_${l}" rows="5" data-keep>${esc(text(k, l))}</textarea></label>`).join('')}</div>
       <div class="rowf" style="margin-top:8px">${b('rlsave', '💾 保存', `data-k="${k}"`, 'main')} ${cur[k] ? b('rlreset', '初期値に戻す', `data-k="${k}"`, 'warn') : ''}</div>`)).join('');
 }
@@ -315,7 +318,7 @@ function pgGift() {
   const next = (played[played.length - 1] || 0) + 1;
   const n = L.giftN || st.giftGame || played[played.length - 1] || 1, gs = games['g' + n] || {};
   const done = Object.values(gs).filter(g => g.over).length, tot = Object.keys(gs).length;
-  return head('R3 プレゼントツリー', '1〜10のプレゼントのどれかに💣を入れ、相手が1つ開けます。💣ならその人の点数は0に戻ります（ゲームは続く）。<br>各ペアは終わった時点で自動的に加点されます（ゲーム内の点数 × ' + S.cfg.giftMul + '）。')
+  return head('R3 プレゼントゲーム', '1〜10のプレゼントのどれかに💣を入れ、相手が1つ開けます。💣ならその人の点数は0に戻ります（ゲームは続く）。<br>各ペアは終わった時点で自動的に加点されます（ゲーム内の点数 × ' + S.cfg.giftMul + '）。')
     + (!Object.keys(pairs).length ? box('⚠ ペアがいません', `<p>先にペア作りをしてください。 ${b('go', 'ペア作りへ', 'data-p="pair"', 'main')}</p>`) : '')
     + `<div class="steps">${step(1, `ゲーム ${next} を開始`, next > 1 ? '最初に💣を入れる人は、前のゲームと入れ替わります。' : '最初に💣を入れる人はランダムで決まります。', b('giftstart', `▶ ゲーム ${next} を開始`, `data-n="${next}"`, 'main big'), played.length ? '' : 'now')}
       ${step(2, '1手の制限時間', '時間切れの手はランダムで進みます。押していたら短くしてください。', `<input id="gsec" class="s" type="number" value="${S.cfg.giftTurnSec}" data-keep> 秒 ${b('gsecsave', '変更')}`)}</div>`
@@ -578,12 +581,17 @@ const ACT = {
   tmadd: el => { const tm = S.timer || {}, d = +el.dataset.s * 1000; return tm.running ? db.update('timer', { endAt: Math.max(db.now(), tm.endAt + d) }) : db.update('timer', { remain: Math.max(0, (tm.remain || 0) + d) }); },
   async rlsave(el) {
     const k = el.dataset.k, out = {};
-    for (const l of ['ja', 'en', 'zh']) out[l] = (document.getElementById(`rl_${k}_${l}`)?.value || '').trim();
+    for (const l of ['ja', 'en', 'zh']) {
+      out[l] = (document.getElementById(`rl_${k}_${l}`)?.value || '').trim();
+      const sv = (document.getElementById(`rs_${k}_${l}`)?.value || '').trim(); if (sv) out['sub_' + l] = sv;
+    }
+    const tv = (document.getElementById('rt_' + k)?.value || '').trim(); if (tv) out.title = tv;
     await db.set('rules/' + k, out);
   },
   async rlreset(el) {
     const k = el.dataset.k; if (!confirm('このステージのルールを初期値に戻しますか？')) return;
-    for (const l of ['ja', 'en', 'zh']) document.getElementById(`rl_${k}_${l}`)?.remove();
+    for (const l of ['ja', 'en', 'zh']) { document.getElementById(`rl_${k}_${l}`)?.remove(); document.getElementById(`rs_${k}_${l}`)?.remove(); }
+    document.getElementById('rt_' + k)?.remove();
     await db.set('rules/' + k, null);
   },
   async manualpt() {
