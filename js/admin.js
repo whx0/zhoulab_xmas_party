@@ -334,7 +334,7 @@ function pgGift() {
     + (!Object.keys(pairs).length ? box('⚠ ペアがいません', `<p>先にペア作りをしてください。 ${b('go', 'ペア作りへ', 'data-p="pair"', 'main')}</p>`) : '')
     + `<div class="steps">${step(1, `ゲーム ${next} を開始`, next > 1 ? '最初に💣を入れる人は、前のゲームと入れ替わります。' : '最初に💣を入れる人はランダムで決まります。', b('giftstart', `▶ ゲーム ${next} を開始`, `data-n="${next}"`, 'main big'), played.length ? '' : 'now')}
       ${step(2, '1手の制限時間', '時間切れの手はランダムで進みます。押していたら短くしてください。', `<input id="gsec" class="s" type="number" value="${S.cfg.giftTurnSec}" data-keep> 秒 ${b('gsecsave', '変更')}`)}</div>`
-    + (played.length ? `<div class="rowf" style="margin:14px 0">表示するゲーム：${played.map(k => b('giftview', `ゲーム${k}`, `data-n="${k}"`, k === n ? 'on' : '')).join('')} ${b('giftstart', `ゲーム ${n} をやり直す`, `data-n="${n}"`, 'warn')}</div>
+    + (played.length ? `<div class="rowf" style="margin:14px 0">表示するゲーム：${played.map(k => b('giftview', `ゲーム${k}`, `data-n="${k}"`, k === n ? 'on' : '')).join('')} ${b('giftstart', `ゲーム ${n} をやり直す`, `data-n="${n}"`, 'warn')} ${b('giftdel', `ゲーム ${n} を削除`, `data-n="${n}"`, 'warn')} ${b('giftreset', 'すべてのゲームをリセット', '', 'warn')}</div>
       <div class="kpis">${kpi(`ゲーム${n}：終わったペア`, `${done} / ${tot}`)}</div>` : '')
     + `<div class="cards2">${Object.keys(pairs).map(pid => giftCard(pid, gs[pid], n)).join('')}</div>`;
 }
@@ -582,6 +582,20 @@ const ACT = {
     L.giftN = n;
   },
   giftview: el => { L.giftN = +el.dataset.n; render(); },
+  async giftdel(el) {          // 1ゲーム分を削除（そのゲームの得点も消す）
+    const n = +el.dataset.n; if (!confirm(`ゲーム ${n} を削除しますか？（このゲームの得点も消えます）`)) return;
+    const up = { [`gift/g${n}`]: null };
+    for (const k of uids()) up[`points/${k}/r3g${n}`] = null;
+    if (+S.state?.giftGame === n) up['state/giftGame'] = null;
+    await db.update('', up); L.giftN = null;
+  },
+  async giftreset() {          // R3 をまるごと最初から（ゲーム1から）
+    if (!confirm('R3 のゲームをすべて削除して、ゲーム1からやり直せる状態にしますか？（R3 の得点も消えます。ペアはそのまま）')) return;
+    const up = { gift: null, 'state/giftGame': null };
+    for (const k of uids()) for (const src of Object.keys(points()[k] || {})) if (src.startsWith('r3g')) up[`points/${k}/${src}`] = null;
+    for (const pid of Object.keys(S.pairs || {})) up[`pairs/${pid}/first`] = null;
+    await db.update('', up); L.giftN = null;
+  },
   giftskip: el => giftStep(`gift/g${el.dataset.n}/${el.dataset.p}`, true),
 
   tmpreset: el => { const m = document.getElementById('tm_min'), s2 = document.getElementById('tm_sec'); if (m) m.value = el.dataset.m; if (s2) s2.value = 0; },
