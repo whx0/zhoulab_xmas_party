@@ -65,7 +65,7 @@ function top() {
 const langBar = () => `<div class="langs">${LANGS.map(([k, l]) => `<button class="${lang === k ? 'on' : ''}" data-act="lang" data-l="${k}">${l}</button>`).join('')}</div>`;
 function timerRemain(tm) { return !tm ? 0 : tm.running ? Math.max(0, tm.endAt - db.now()) : (tm.remain || 0); }
 // 分単位の締め切り表示（残り mm:ss ＋ バー）
-const cdBar = (s, e) => `<div class="cd"><div class="cdt"><span>${ICON.clock}${t('remain')}</span><b data-mmss="${e}"></b></div><div class="cdbar"><i data-s="${s}" data-e="${e}"></i></div></div>`;
+const cdBar = (s, e, cls = '') => `<div class="cd ${cls}"><div class="cdt"><span>${ICON.clock}${t('remain')}</span><b data-mmss="${e}"></b></div><div class="cdbar"><i data-s="${s}" data-e="${e}"></i></div></div>`;
 const rtop = (key, v) => `<div class="rtop">${rulesCard(key, v)}</div>`;   // ルールは見出しのすぐ下
 const rulesCard = (key, v) => {
   const open = L.rules[key] !== false;
@@ -252,7 +252,7 @@ function viewTools() {
   let h = hd(t('stageNasa'), title('nasa'), S.rules?.nasa?.sub_ja ? subOf('nasa', '') : solo ? t('subNasaSolo', { n: N }) : leader ? t('subNasaLeader', { n: N }) : t('subNasaMember'));
   h += rtop('nasa', { n: N });
   if (!assets.length) return h + bottom(waiting('LOADING'));
-  if (open) h += cdBar(st.toolStartAt || st.toolEndAt - 60000, st.toolEndAt);
+  if (open) h += cdBar(st.toolStartAt || st.toolEndAt - 60000, st.toolEndAt, 'stick');
   let mode, picks;
   if (solo) { if (S.toolSolo) { mode = 'view'; picks = toArr(S.toolSolo); } else mode = open ? 'edit' : 'view'; }
   else if (S.toolTeam) { mode = 'view'; picks = toArr(S.toolTeam); }
@@ -276,7 +276,7 @@ function viewSpot() {
   const open = st.spotOpen && db.now() < (st.spotEndAt || 0);
   const h = hd(t('stageSpot'), title('spot'), S.rules?.spot?.sub_ja ? subOf('spot', '') : leader ? t('subSpotLeader') : t('subSpotMember'));
   if (!a) return h + bottom(waiting('LOADING'));
-  return h + rtop('spot', { cap: st.spotCap ?? '-' }) + (open ? cdBar(st.spotStartAt || st.spotEndAt - 60000, st.spotEndAt) : `<div class="done"><span class="stamp">${ICON.clock}TIME UP</span></div>`)
+  return h + rtop('spot', { cap: st.spotCap ?? '-' }) + (open ? cdBar(st.spotStartAt || st.spotEndAt - 60000, st.spotEndAt, 'stick') : `<div class="done"><span class="stamp">${ICON.clock}TIME UP</span></div>`)
     + `<div class="zooms">${[1, 2, 3].map(z => `<button class="${L.zoom === z ? 'on' : ''}" data-act="zoom" data-z="${z}">×${z}</button>`).join('')}<span class="cnt" id="spotcnt"></span></div>
     <div class="spotwrap"><div class="spotinner" id="spotinner" style="width:${L.zoom * 100}%"><img src="${a.data}" alt=""><div class="marks" id="marks"></div></div></div>
 ` + bottom('');
@@ -484,7 +484,7 @@ function tick() {
   const now = db.now();
   for (const el of document.querySelectorAll('[data-deadline]')) el.textContent = fmtSec(+el.dataset.deadline - now);
   const mmss = ms => { const s2 = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(s2 / 60)}:${String(s2 % 60).padStart(2, '0')}`; };
-  for (const el of document.querySelectorAll('[data-mmss]')) el.textContent = mmss(+el.dataset.mmss - now);
+  for (const el of document.querySelectorAll('[data-mmss]')) { const r = +el.dataset.mmss - now; el.textContent = mmss(r); el.closest('.cd.stick')?.classList.toggle('warn', r < 30000); }
   for (const el of document.querySelectorAll('.cdbar i')) { const s1 = +el.dataset.s, e1 = +el.dataset.e; el.style.width = Math.max(0, Math.min(100, (e1 - now) / (e1 - s1) * 100)) + '%'; }
   for (const el of document.querySelectorAll('[data-tm]')) el.textContent = mmss(timerRemain(S.timer));
   for (const el of document.querySelectorAll('.tarc')) { const tm = S.timer || {}; const r = tm.dur ? Math.max(0, Math.min(1, timerRemain(tm) / tm.dur)) : 0; el.style.strokeDashoffset = (289 * (1 - r)).toFixed(1); }
