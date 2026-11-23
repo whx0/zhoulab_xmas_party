@@ -66,6 +66,7 @@ const langBar = () => `<div class="langs">${LANGS.map(([k, l]) => `<button class
 function timerRemain(tm) { return !tm ? 0 : tm.running ? Math.max(0, tm.endAt - db.now()) : (tm.remain || 0); }
 // 分単位の締め切り表示（残り mm:ss ＋ バー）
 const cdBar = (s, e) => `<div class="cd"><div class="cdt"><span>${ICON.clock}${t('remain')}</span><b data-mmss="${e}"></b></div><div class="cdbar"><i data-s="${s}" data-e="${e}"></i></div></div>`;
+const rtop = (key, v) => `<div class="rtop">${rulesCard(key, v)}</div>`;   // ルールは見出しのすぐ下
 const rulesCard = (key, v) => {
   const open = L.rules[key] !== false;
   return `<div class="rules ${open ? 'open' : ''}"><button class="rh" data-act="rules" data-k="${key}">${ICON.star}<span>${t('rules')}</span><i>${open ? '−' : '+'}</i></button>
@@ -128,9 +129,9 @@ function viewHome() {
   const u = U(), end = S.state.phase === 'end';
   const chips = [u.team ? `<span class="chip">${ICON.users}TEAM ${esc(sid(u.team))}</span>` : '', u.pair ? `<span class="chip">${ICON.link}PAIR ${esc(sid(partnerOf(u.pair)))}</span>` : ''].join('');
   return hd(end ? 'Thank you' : t('welcome'), end ? 'See you <em>next year</em>' : `Hello, <em>${esc(u.name)}</em>`, end ? t('thanks') : t('idHint'))
+    + (end ? '' : rtop('lobby'))
     + wreathHTML(`<div class="lbl">YOUR ID</div><div class="big xl">${esc(sid(me))}</div>`, { size: 200 })
     + (chips ? `<div class="chips">${chips}</div>` : '')
-    + (end ? '' : `<div style="margin-top:16px">${rulesCard('lobby')}</div>`)
     + bottom(waiting(end ? 'MERRY CHRISTMAS' : 'WAITING FOR NEXT', end ? '' : t('waitNext')));
 }
 
@@ -162,7 +163,6 @@ function viewQuestion() {
   const choices = q.type === 'ox' ? ['O', 'X'] : ['A', 'B', 'C', 'D'];
   const end = q.startAt + (q.limit || 0) * 1000;
   const timeUp = q.limit && db.now() > end;
-  const rc = rulesCard(qRule(q), { max: S.cfg.r1Max, min: S.cfg.r1Min });
   let h = qHead(q);
   if (a) {
     return h + `<div class="locked"><div class="pick">${choiceEl(q, a.c, true, true)}</div>
@@ -171,6 +171,7 @@ function viewQuestion() {
       <div class="note">${t('locked')}</div></div>` + bottom(waiting('WAITING FOR RESULT'));
   }
   if (!q.open || timeUp) return h + `<div class="locked"><div class="stamp">${ICON.clock}TIME UP</div><div class="note">${t('timeUp')}</div></div>` + bottom(waiting('WAITING FOR RESULT', t('waitResult')));
+  h += rtop(qRule(q), { max: S.cfg.r1Max, min: S.cfg.r1Min });
   if (q.limit) h += ring(q.startAt, end);
   h += `<div class="${q.type === 'ox' ? 'oxs' : 'sqs'}">${choices.map(c => choiceEl(q, c, L.sel === c)).join('')}</div>`;
   if (q.round === 4) {
@@ -179,7 +180,7 @@ function viewQuestion() {
       <input type="range" class="slider" id="bet" min="0" max="${max}" step="${max >= 2000 ? 50 : 10}" value="${L.bet}" style="--p:${max ? L.bet / max * 100 : 0}%">
       <div class="quick"><button data-act="betset" data-f="0">0</button><button data-act="betset" data-f="0.5">HALF</button><button class="all" data-act="betset" data-f="1">ALL IN</button></div></div>`;
   }
-  return h + `<div style="margin-top:16px">${rc}</div>` + bottom(`<button class="btn" data-act="submit" ${L.sel ? '' : 'disabled'}>Decide<small>${t('decideSub')}</small></button>`);
+  return h + bottom(`<button class="btn" data-act="submit" ${L.sel ? '' : 'disabled'}>Decide<small>${t('decideSub')}</small></button>`);
 }
 
 // ---- 結果 ----
@@ -212,30 +213,29 @@ function viewResult() {
 function viewTeam() {
   const u = U(), t0 = u.team && S.teams[u.team];
   const h = hd('Team', title('team'), subOf('team', t('subTeam')));
-  const rc = `<div style="margin-top:14px">${rulesCard('team', { n: S.cfg.teamSize })}</div>`;
-  if (!t0) return h + `<div class="card lined"><button class="btn light" data-act="mkteam" style="margin-top:4px">Create<small>${t('createSub')}</small></button>
+  const h2 = h + rtop('team', { n: S.cfg.teamSize });
+  if (!t0) return h2 + `<div class="card lined"><button class="btn light" data-act="mkteam" style="margin-top:4px">Create<small>${t('createSub')}</small></button>
       <div class="or">or</div><div class="lbl">Join · ${t('joinTeam')}</div>
-      <div class="inline"><div class="field">${ICON.users}<input id="jteam" inputmode="numeric" placeholder="No."></div><button class="btn" data-act="jointeam">Join</button></div></div>` + rc + bottom('');
+      <div class="inline"><div class="field">${ICON.users}<input id="jteam" inputmode="numeric" placeholder="No."></div><button class="btn" data-act="jointeam">Join</button></div></div>` + bottom('');
   const mem = Object.keys(t0.members || {}).sort();
-  return h + `<div class="card lined teambox"><div class="lbl">Team No.</div><div class="tno">${esc(sid(u.team))}</div>
+  return h2 + `<div class="card lined teambox"><div class="lbl">Team No.</div><div class="tno">${esc(sid(u.team))}</div>
     <div class="lbl" style="color:var(--ink2)">${mem.length} / ${S.cfg.teamSize} ${t('members')}</div>
     <ul class="mem">${mem.map(k => `<li>${t0.leader === k ? ICON.crown : ''}<span class="pid">${esc(sid(k))}</span>${esc(name(k))}</li>`).join('')}</ul>
-    <button class="link" data-act="leaveteam" style="margin-top:6px">${t('leave')}</button></div>` + rc + bottom('');
+    <button class="link" data-act="leaveteam" style="margin-top:6px">${t('leave')}</button></div>` + bottom('');
 }
 
 // ---- ペア ----
 function viewPair() {
   const u = U(), h = hd('Pair', title('pair'), subOf('pair', t('subPair')));
-  const rc = `<div style="margin-top:14px">${rulesCard('pair')}</div>`;
   if (u.pair) {
     const p = partnerOf(u.pair);
     return `<div class="paired"><div class="okmark">${ICON.check}</div><div class="title">Paired<em>!</em></div><div class="pok">${t('pairedBig')}</div></div>`
       + wreathHTML(`<div class="lbl">YOUR PARTNER</div><div class="big xl" style="font-size:80px">${esc(sid(p))}</div><div style="letter-spacing:.1em">${esc(name(p))}</div>`, { size: 190, bow: false })
       + bottom(waiting('PLEASE WAIT', t('pairedWait')) + `<button class="btn light" data-act="unpair" style="margin-top:14px">Redo<small>${t('redoPair')}</small></button>`);
   }
-  return h + `<div class="card lined"><div class="lbl">${t('partnerId')}</div>
+  return h + rtop('pair') + `<div class="card lined"><div class="lbl">${t('partnerId')}</div>
     <div class="inline"><div class="field">${ICON.link}<input id="pid" inputmode="numeric" placeholder="ID"></div><button class="btn" data-act="pair">OK</button></div>
-    ${u.pairReq ? `<p class="hint" style="text-align:center;letter-spacing:.1em;color:var(--ink2);font-size:12px">${t('waitPartner', { id: esc(sid(u.pairReq)), name: esc(name(u.pairReq)) })}</p>` : ''}</div>` + rc + bottom('');
+    ${u.pairReq ? `<p class="hint" style="text-align:center;letter-spacing:.1em;color:var(--ink2);font-size:12px">${t('waitPartner', { id: esc(sid(u.pairReq)), name: esc(name(u.pairReq)) })}</p>` : ''}</div>` + bottom('');
 }
 
 // ---- R2 道具選び ----
@@ -245,6 +245,7 @@ function viewTools() {
   const open = st.toolOpen && db.now() < (st.toolEndAt || 0);
   const solo = st.toolStep !== 'team';
   let h = hd(t('stageNasa'), title('nasa'), S.rules?.nasa?.sub_ja ? subOf('nasa', '') : solo ? t('subNasaSolo', { n: N }) : leader ? t('subNasaLeader', { n: N }) : t('subNasaMember'));
+  h += rtop('nasa', { n: N });
   if (!assets.length) return h + bottom(waiting('LOADING'));
   if (open) h += cdBar(st.toolStartAt || st.toolEndAt - 60000, st.toolEndAt);
   let mode, picks;
@@ -260,7 +261,6 @@ function viewTools() {
   if (done) h += `<div class="done"><span class="stamp">${ICON.check}${t('submitted')}</span></div>`;
   h += `<div class="tiles">${assets.map((a, i) => `<button class="tile ${sel.includes(i) ? 'on' : ''}" ${mode === 'edit' ? `data-act="tool" data-i="${i}"` : 'disabled'}>
       <span class="no">${String(i + 1).padStart(2, '0')}</span><img src="${a.data}" alt="">${a.label ? `<span class="nm">${esc(a.label)}</span>` : ''}</button>`).join('')}</div>`;
-  h += `<div style="margin-top:14px">${rulesCard('nasa', { n: N })}</div>`;
   return h + bottom(mode === 'edit' ? `<button class="btn" data-act="toolsubmit" ${L.tools.length === N ? '' : 'disabled'}>Decide<small>${L.tools.length} / ${N}　${t('decideSub')}</small></button>` : waiting(done ? 'SUBMITTED' : 'PLEASE WAIT'));
 }
 
@@ -271,10 +271,10 @@ function viewSpot() {
   const open = st.spotOpen && db.now() < (st.spotEndAt || 0);
   const h = hd(t('stageSpot'), title('spot'), S.rules?.spot?.sub_ja ? subOf('spot', '') : leader ? t('subSpotLeader') : t('subSpotMember'));
   if (!a) return h + bottom(waiting('LOADING'));
-  return h + (open ? cdBar(st.spotStartAt || st.spotEndAt - 60000, st.spotEndAt) : `<div class="done"><span class="stamp">${ICON.clock}TIME UP</span></div>`)
+  return h + rtop('spot', { cap: st.spotCap ?? '-' }) + (open ? cdBar(st.spotStartAt || st.spotEndAt - 60000, st.spotEndAt) : `<div class="done"><span class="stamp">${ICON.clock}TIME UP</span></div>`)
     + `<div class="zooms">${[1, 2, 3].map(z => `<button class="${L.zoom === z ? 'on' : ''}" data-act="zoom" data-z="${z}">×${z}</button>`).join('')}<span class="cnt" id="spotcnt"></span></div>
     <div class="spotwrap"><div class="spotinner" id="spotinner" style="width:${L.zoom * 100}%"><img src="${a.data}" alt=""><div class="marks" id="marks"></div></div></div>
-    <div style="margin-top:14px">${rulesCard('spot', { cap: st.spotCap ?? '-' })}</div>` + bottom('');
+` + bottom('');
 }
 function drawMarks() {
   const el = document.getElementById('marks'); if (!el) return;
@@ -300,7 +300,7 @@ async function spotTap(el, e) {
 // ---- R3 プレゼントツリー ----
 function viewGift() {
   const g = S.gift, u = U(), n = S.state.giftGame;
-  let h = hd(`Game ${n || ''}`, title('gift'), subOf('gift', t('subGift')));
+  let h = hd(`Game ${n || ''}`, title('gift'), subOf('gift', t('subGift'))) + rtop('gift', { sec: S.cfg.giftTurnSec });
   if (!u.pair) return h + bottom(waiting('NO PARTNER', t('noPartner')));
   if (!g) return h + bottom(waiting('READY'));
   const side = g.a === me ? 'a' : 'b';
@@ -330,7 +330,6 @@ function viewGift() {
       <span class="hist">${log.filter(e => e.side === s).map(e => `<i class="${e.bomb ? 'b' : ''}">${e.bomb ? '💣' : '+' + e.num}</i>`).join('')}</span>
       <span class="tot">${g.score?.[s] || 0}</span></div>`;
   }).join('')}</div>`;
-  h += `<div style="margin-top:14px">${rulesCard('gift', { sec: S.cfg.giftTurnSec })}</div>`;
   return h + bottom(act ? `<button class="btn" data-act="ggo" ${L.gsel ? '' : 'disabled'}>${iSet ? `Hide${L.gsel ? ' · ' + L.gsel : ''}` : `Open${L.gsel ? ' · ' + L.gsel : ''}`}<small>${iSet ? t('hideSub') : t('openSub')}</small></button>` : '');
 }
 async function giftGo() {
@@ -489,5 +488,15 @@ function tick() {
     el.style.strokeDashoffset = (182.2 * (1 - r)).toFixed(1);
   }
 }
-setInterval(() => { render(); checkPair(); giftTick(); }, 250);
+// 制限時間になったら、選んでいる回答で自動的に確定（何も選んでいなければ無回答のまま）
+async function autoLock() {
+  const q = S.question, st = S.state;
+  if (st.phase !== 'quiz' || !q?.open || !q.limit || S.myAnswer || !L.sel || L.autoDone === st.qid) return;
+  if (db.now() < q.startAt + q.limit * 1000 - 350) return;
+  L.autoDone = st.qid;
+  const a = { c: L.sel, t: TS };
+  if (q.round === 4) a.bet = Math.min(L.bet, Math.max(total(), 0));
+  try { if (!(await db.get(`answers/${st.qid}/${me}`))) await db.set(`answers/${st.qid}/${me}`, a); } catch {}
+}
+setInterval(() => { render(); checkPair(); giftTick(); autoLock(); }, 250);
 render();

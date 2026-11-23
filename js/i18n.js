@@ -105,9 +105,9 @@ const R = {
     zh: ['题目会显示在大屏幕上。', '从A〜D中选一个并点击“确定”，确定后不能更改。', '这是练习，不计分。'],
   },
   solo: {
-    ja: ['問題はスクリーンに表示されます。', 'A〜D から1つ選んで「決定」。1問につき1回だけ、変更はできません。', '早く正解するほど高得点（{max}点 → 制限時間ぎりぎりで{min}点）。不正解は0点。'],
-    en: ['Questions are shown on the screen.', 'Choose one of A–D and press Submit. One answer per question; no changes.', 'The faster you answer correctly, the more points ({max} → {min} at the time limit). Wrong = 0.'],
-    zh: ['题目会显示在大屏幕上。', '从A〜D中选一个并点击“确定”。每题只能答一次，不能更改。', '越快答对得分越高（{max}分 → 到时限时{min}分）。答错得0分。'],
+    ja: ['問題はスクリーンに表示されます。', 'A〜D から1つ選んで「決定」。1問につき1回だけ、変更はできません。', '早く正解するほど高得点（{max}点 → 制限時間ぎりぎりで{min}点）。不正解は0点。', '「決定」を押さなくても、時間になった時点で選んでいる回答が自動的に確定します。'],
+    en: ['Questions are shown on the screen.', 'Choose one of A–D and press Submit. One answer per question; no changes.', 'The faster you answer correctly, the more points ({max} → {min} at the time limit). Wrong = 0.', 'When time runs out, the choice you have selected is submitted automatically.'],
+    zh: ['题目会显示在大屏幕上。', '从A〜D中选一个并点击“确定”。每题只能答一次，不能更改。', '越快答对得分越高（{max}分 → 到时限时{min}分）。答错得0分。', '即使没有点“确定”，时间到时所选的答案也会自动提交。'],
   },
   team: {
     ja: ['1人が「作成」を押すとチーム番号が表示されます（その人がリーダー）。', '他のメンバーはその番号を入力して参加します。定員は{n}人。', '日本人と留学生がそれぞれ2人以上になるようにしましょう。'],

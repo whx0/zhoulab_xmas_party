@@ -108,6 +108,8 @@ body.player { background: #dde3e6; min-height: 100dvh;
 .rules ol { margin: 0; padding: 0 16px 12px 34px; font-size: 12.5px; line-height: 1.75; letter-spacing: .03em; }
 .rules ol li::marker { color: var(--gold); font-family: var(--serif); }
 
+.rtop { margin: -4px 0 16px; }
+
 /* 待機 */
 .waiting { text-align: center; color: var(--navy); }
 .waiting .dm { display: flex; justify-content: center; gap: 18px; margin-bottom: 12px; }
