@@ -283,7 +283,11 @@ input[type=range].slider::-moz-range-thumb { width: 14px; height: 14px; backgrou
 
 /* チーム・ペア */
 .teambox { text-align: center; }
-.teambox .tno { font-family: var(--serif); font-size: 76px; line-height: 1; color: var(--navy); }
+.teambox .tno { font-family: var(--num); font-weight: 600; font-size: 88px; line-height: 1.05; color: var(--navy); font-variant-numeric: lining-nums; }
+.myrole { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; padding: 5px 14px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink); font-size: 14px; font-weight: 700; letter-spacing: .08em; }
+.myrole svg { width: 16px; height: 16px; color: var(--gold); }
+.myrole.leader { background: var(--navy); color: var(--gold2); border-color: var(--navy); }
+.mem li.me { font-weight: 700; color: var(--navy); background: rgba(201, 169, 106, .12); }
 .mem { list-style: none; padding: 0; margin: 10px 0 4px; }
 .mem li { padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; letter-spacing: .08em; display: flex; align-items: center; gap: 8px; justify-content: center; }
 .mem li svg { width: 15px; height: 15px; color: var(--gold); }

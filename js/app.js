@@ -217,11 +217,16 @@ function viewTeam() {
   if (!t0) return h2 + `<div class="card lined"><button class="btn light" data-act="mkteam" style="margin-top:4px">Create<small>${t('createSub')}</small></button>
       <div class="or">or</div><div class="lbl">Join · ${t('joinTeam')}</div>
       <div class="inline"><div class="field">${ICON.users}<input id="jteam" inputmode="numeric" placeholder="No."></div><button class="btn" data-act="jointeam">Join</button></div></div>` + bottom('');
-  const mem = Object.keys(t0.members || {}).sort();
-  return h2 + `<div class="card lined teambox"><div class="lbl">Team No.</div><div class="tno">${esc(sid(u.team))}</div>
-    <div class="lbl" style="color:var(--ink2)">${mem.length} / ${S.cfg.teamSize} ${t('members')}</div>
-    <ul class="mem">${mem.map(k => `<li>${t0.leader === k ? ICON.crown : ''}<span class="pid">${esc(sid(k))}</span>${esc(name(k))}</li>`).join('')}</ul>
-    <button class="link" data-act="leaveteam" style="margin-top:6px">${t('leave')}</button></div>` + bottom('');
+  // チーム結成後：見出しを消して「チーム結成！」とチーム番号を大きく
+  const mem = Object.keys(t0.members || {}).sort(), leader = t0.leader === me;
+  return `<div class="paired"><div class="okmark">${ICON.check}</div><div class="title">Team <em>ready!</em></div><div class="pok">${t('teamBig')}</div></div>`
+    + `<div class="card lined teambox"><div class="lbl">Team No.</div><div class="tno">${esc(sid(u.team))}</div>
+    <div class="myrole ${leader ? 'leader' : ''}">${leader ? ICON.crown : ICON.users}${leader ? t('youLeader') : t('youMember')}</div>
+    <div class="lbl" style="color:var(--ink2);margin-top:12px">${mem.length} / ${S.cfg.teamSize} ${t('members')}</div>
+    <ul class="mem">${mem.map(k => `<li class="${k === me ? 'me' : ''}">${t0.leader === k ? ICON.crown : ''}<span class="pid">${esc(sid(k))}</span>${esc(name(k))}</li>`).join('')}</ul>
+    ${leader ? `<div class="hint" style="color:var(--ink2);font-size:12px">${t('shareNo', { n: esc(sid(u.team)) })}</div>` : ''}
+    <button class="link" data-act="leaveteam" style="margin-top:6px">${t('leave')}</button></div>`
+    + `<div style="margin-top:14px">${rtop('team', { n: S.cfg.teamSize })}</div>` + bottom(waiting('PLEASE WAIT', t('teamWait')));
 }
 
 // ---- ペア ----
